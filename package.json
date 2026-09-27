@@ -1,0 +1,10 @@
+{
+  "name": "calendarg",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "generate": "node --experimental-strip-types src/cli/cli.ts"
+  }
+}
