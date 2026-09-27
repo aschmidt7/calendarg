@@ -28,9 +28,9 @@ The following are intentionally outside v1:
 
 - Product suite: **67 passing tests**.
 - Integration: real local `rsvg-convert` and Poppler integration exercised.
-- Current regenerated product artifact: `evidence/output/v1-test-may-2024.pdf`.
+- Current regenerated product artifact: retained locally outside the repository.
   Current SHA-256: `67120e0d2d36c9a0f9a14827c68441017c311dc20fd1e1f41efba5963f6e43c1`.
-- Physically printed calibration artifact: `evidence/output/monthly-calendar-2024-05.pdf`.
+- Physically printed calibration artifact: retained locally outside the repository.
   Printed-artifact SHA-256: `fe79122eaeedc522336cd092033779d00c203c055b56c4643b603565c3be2946`.
 
 ## Physical print evidence

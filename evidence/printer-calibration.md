@@ -2,7 +2,7 @@
 
 ## Artifact
 
-- Output: `evidence/output/monthly-calendar-2024-05.pdf`
+- Calibration artifact: retained locally outside the repository.
 - SHA-256: `fe79122eaeedc522336cd092033779d00c203c055b56c4643b603565c3be2946`
 - Layout policy: experimental 10 mm safe area
 - Product result: one A4 portrait PDF with embedded DejaVu Sans

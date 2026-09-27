@@ -49,11 +49,11 @@ The product currently has 67 passing tests, including real local
 
 ## Evidence limitations
 
-The checked-in PDFs and screenshots under `evidence/` are retained as
-historical evidence. The documented physical print result applies only to the
-HP LaserJet 1020, driver, A4 media, and disabled scaling configuration
-recorded in `evidence/printer-calibration.md`; it is not a universal printer
-compatibility claim. Holiday coverage depends on the maintained local JSON
-files, while ArgentinaDatos is an optional fallback whose availability and
-authority are not guaranteed. See `evidence/release-v1.md` for the complete
-release-boundary caveats.
+Release evidence is documented under `evidence/`, while generated PDFs and
+screenshots remain local-only artifacts outside the repository. The documented
+physical print result applies only to the HP LaserJet 1020, driver, A4 media,
+and disabled scaling configuration recorded in `evidence/printer-calibration.md`;
+it is not a universal printer compatibility claim. Holiday coverage depends on
+the maintained local JSON files, while ArgentinaDatos is an optional fallback
+whose availability and authority are not guaranteed. See
+`evidence/release-v1.md` for the complete release-boundary caveats.
