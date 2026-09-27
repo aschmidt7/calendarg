@@ -1,0 +1,9 @@
+{
+  "name": "monthly-calendar-product",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test",
+    "generate": "node --experimental-strip-types src/cli.ts"
+  }
+}

@@ -1,0 +1,6 @@
+.atl/
+.codegraph/
+spike/.playwright-browsers/
+spike/node_modules/
+spike/**/*.ppm
+spike/.tmp/
