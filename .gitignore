@@ -4,3 +4,8 @@ spike/.playwright-browsers/
 spike/node_modules/
 spike/**/*.ppm
 spike/.tmp/
+
+# Generated product and local runtime artifacts.
+calendar-*.pdf
+.tmp/
+*.tmp
