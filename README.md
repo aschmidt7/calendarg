@@ -1,5 +1,7 @@
 # Calendarg
 
+**Version:** `0.1.0`
+
 Calendarg is a local-first printable monthly calendar generator.
 
 ## v1 scope
