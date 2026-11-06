@@ -157,3 +157,8 @@ test("rejects invalid Gregorian requests and impossible verified attachments", (
     RangeError,
   );
 });
+
+test("rejects a December 9999 or January 1 request whose adjacent date would leave year 1-9999", () => {
+  assert.throws(() => buildMonthlyCalendar({ year: 9999, month: 12 }), RangeError);
+  assert.throws(() => buildMonthlyCalendar({ year: 1, month: 1 }), RangeError);
+});

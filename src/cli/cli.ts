@@ -133,6 +133,12 @@ const parseArguments = (argv: readonly string[]): ParsedArguments => {
   const month = parsePositiveInteger("--month", values.get("--month"));
   if (month < 1 || month > 12) throw new Error("--month must be between 1 and 12.");
 
+  if ((year === 9999 && month === 12) || (year === 1 && month === 1)) {
+    throw new Error(
+      "--year/--month must not generate an adjacent date outside year 1 through 9999.",
+    );
+  }
+
   const outputPath = values.get("--output") ?? `calendar-${year}-${String(month).padStart(2, "0")}.pdf`;
   const dataRoot = values.get("--data-root") ?? DEFAULT_DATA_ROOT;
   if (outputPath === "" || dataRoot === "") throw new Error("Output and data-root paths must not be empty.");

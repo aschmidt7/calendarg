@@ -50,6 +50,19 @@ export const validateGenerationRequest = (
     );
   }
 
+  if (
+    diagnostics.length === 0 &&
+    ((year === 9999 && month === 12) || (year === 1 && month === 1))
+  ) {
+    diagnostics.push(
+      error(
+        "ADJACENT_DATE_OUT_OF_RANGE",
+        "Calendar month must not generate an adjacent date outside year 1 through 9999.",
+        ["year", "month"],
+      ),
+    );
+  }
+
   if (template !== V1_TEMPLATE) {
     diagnostics.push(
       error(

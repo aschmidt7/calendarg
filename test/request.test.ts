@@ -62,3 +62,21 @@ test("rejects a non-object request instead of applying defaults", () => {
     ["INVALID_REQUEST"],
   );
 });
+
+test("rejects a year/month whose adjacent date would leave the supported 1-9999 range", () => {
+  for (const [year, month] of [[9999, 12], [1, 1]] as const) {
+    const result = validateGenerationRequest({
+      year,
+      month,
+      template: "vertical-monthly-v1",
+      holidayScope: "argentina-national",
+    });
+
+    assert.equal(result.ok, false);
+    assert.deepEqual(
+      result.diagnostics.map((diagnostic) => diagnostic.code),
+      ["ADJACENT_DATE_OUT_OF_RANGE"],
+    );
+  }
+});
+

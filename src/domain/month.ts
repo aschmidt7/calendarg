@@ -85,6 +85,14 @@ const assertGregorianYearMonth = (year: unknown, month: unknown): asserts year i
   ) {
     throw new RangeError("Calendar request must contain a valid Gregorian year and month.");
   }
+  if (
+    ((year as number) === 9999 && (month as number) === 12) ||
+    ((year as number) === 1 && (month as number) === 1)
+  ) {
+    throw new RangeError(
+      "Calendar month must not generate an adjacent date outside year 1 through 9999.",
+    );
+  }
 };
 
 const pad = (value: number): string => value.toString().padStart(2, "0");

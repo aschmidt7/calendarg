@@ -50,6 +50,8 @@ test("requires explicit valid year and month arguments", async () => {
     ["--year", "2024"],
     ["--year", "2024", "--month", "13"],
     ["--year", "2024.5", "--month", "6"],
+    ["--year", "9999", "--month", "12"],
+    ["--year", "1", "--month", "1"],
   ]) {
     const result = await runCli(argv);
     assert.equal(result.exitCode, 2);
