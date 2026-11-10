@@ -9,6 +9,7 @@
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "generate": "node --experimental-strip-types src/cli/cli.ts",
-    "doctor": "node --experimental-strip-types src/cli/doctor.ts"
+    "doctor": "node --experimental-strip-types src/cli/doctor.ts",
+    "release-check": "node --experimental-strip-types src/cli/release-check.ts"
   }
 }

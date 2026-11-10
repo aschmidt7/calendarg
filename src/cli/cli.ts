@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { access, constants, link, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, constants, link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join, resolve } from "node:path";
 
@@ -34,6 +34,31 @@ import { RsvgPdfRenderer } from "../infrastructure/pdf.ts";
 
 const CURL_EXECUTABLE = "/usr/bin/curl";
 const DEFAULT_DATA_ROOT = fileURLToPath(new URL("../../data", import.meta.url));
+
+const USAGE = `Calendarg generates local-first printable monthly calendar PDFs.
+
+Usage: npm run generate -- [options]
+
+Options:
+  --year YYYY       Required Gregorian year (1-9999).
+  --month 1..12     Required month.
+  --output PATH     Optional PDF output path (default: calendar-<year>-<month>.pdf).
+  --data-root PATH  Optional local holiday coverage root.
+  --force           Overwrite an existing output path without failing.
+  --help, -h        Show this usage text and exit.
+  --version, -V     Print the package version and exit.
+
+Related commands:
+  npm run doctor          Check environment prerequisites.
+  npm run release-check   Verify release metadata and the environment.
+`;
+
+const readPackageVersion = async (): Promise<string> => {
+  const packageJsonUrl = new URL("../../package.json", import.meta.url);
+  const text = await readFile(packageJsonUrl, "utf8");
+  const parsed = JSON.parse(text) as { version?: unknown };
+  return typeof parsed.version === "string" ? parsed.version : "";
+};
 
 interface NodeTextProcess extends PdfProcess {
   runText(executable: string, args: readonly string[]): Promise<string>;
@@ -206,6 +231,14 @@ export const runCli = async (
   argv: readonly string[],
   dependencies: CliDependencies = {},
 ): Promise<CliRunResult> => {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    return { exitCode: 0, stdout: USAGE, stderr: "" };
+  }
+  if (argv.includes("--version") || argv.includes("-V")) {
+    const version = await readPackageVersion();
+    return { exitCode: 0, stdout: `${version}\n`, stderr: "" };
+  }
+
   let parsed: ParsedArguments;
   try {
     parsed = parseArguments(argv);

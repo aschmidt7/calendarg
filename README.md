@@ -34,6 +34,10 @@ Arguments:
 - `--data-root PATH` — optional local holiday coverage root.
 - `--force` — optional; overwrite an existing output path. Without it, the
   command refuses to replace an existing file and exits with status 1.
+- `--help` / `-h` — print plain-text usage to stdout and exit 0. Takes
+  precedence over `--version` and works even without `--year`/`--month`.
+- `--version` / `-V` — print the installed package version to stdout and
+  exit 0.
 
 The command prints JSON containing the output path, holiday verification state,
 diagnostics, SHA-256, and PDF facts. If local coverage is unavailable, it may
@@ -42,6 +46,21 @@ an explicitly unverified holiday state and no unverified labels. Output is
 written atomically: the PDF is written to a temporary file next to the target
 path, then renamed into place, so a failed or interrupted run never leaves a
 partially written output file.
+
+## Command output contract
+
+`generate`, `doctor`, and `release-check` print a single JSON document to
+stdout with documented fields (see each command's section) and exit with one
+of:
+
+- `0` — success, or a satisfied diagnostic report.
+- `1` — a runtime failure, or a diagnostic report where at least one check
+  failed (`ok: false`).
+- `2` — an argument error (`generate` only); the error is reported as JSON on
+  stderr instead of stdout.
+
+`--help` and `--version` are the only exception: they print plain text to
+stdout (not JSON) and always exit `0`, per Unix convention.
 
 ## Check your environment
 
@@ -54,6 +73,20 @@ Prints a JSON report of the Node.js runtime and native prerequisites
 Sans font, and a writable local data root) and exits non-zero if any check
 fails. This is the documented first step when generation fails in a new
 environment.
+
+## Check release metadata
+
+```sh
+npm run release-check
+```
+
+Prints a JSON report that verifies the project is internally consistent and
+ready for release: that `package.json` parses and declares a non-empty semver
+`version` and an `engines.node` constraint, that `README.md` mentions the
+current version, that `CHANGELOG.md` documents a section for the current
+version, and folds in every `npm run doctor` check. It never runs the test
+suite itself; use `npm test` separately. Exits `0` only when every check is
+ok, otherwise `1`.
 
 ## Supported platform and runtime
 
@@ -72,7 +105,7 @@ without a build step.
 npm test
 ```
 
-The product currently has 85 passing tests, including real local
+The product currently has 98 passing tests, including real local
 `rsvg-convert`/Poppler integration.
 
 ## Evidence limitations

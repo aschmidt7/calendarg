@@ -47,6 +47,45 @@ const localCoverage = {
   holidays: [],
 };
 
+test("--help prints usage text listing every supported flag and exits 0", async () => {
+  const result = await runCli(["--help"]);
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stderr, "");
+  assert.match(result.stdout, /usage/i);
+  for (const flag of ["--year", "--month", "--output", "--data-root", "--force", "--help", "--version"]) {
+    assert.match(result.stdout, new RegExp(flag.replace("-", "\\-"), "i"));
+  }
+});
+
+test("-h is an alias for --help", async () => {
+  const result = await runCli(["-h"]);
+
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /usage/i);
+});
+
+test("--version prints the package.json version and exits 0", async () => {
+  const packageJsonText = await readFile(
+    new URL("../package.json", import.meta.url),
+    "utf8",
+  );
+  const expectedVersion = JSON.parse(packageJsonText).version as string;
+
+  const result = await runCli(["--version"]);
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stderr, "");
+  assert.equal(result.stdout, `${expectedVersion}\n`);
+});
+
+test("--help takes precedence over --version when both are given", async () => {
+  const result = await runCli(["--help", "--version"]);
+
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /usage/i);
+});
+
 test("requires explicit valid year and month arguments", async () => {
   for (const argv of [
     ["--month", "6"],
