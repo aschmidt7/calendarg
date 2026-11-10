@@ -30,6 +30,7 @@ import type {
   PdfInspectionSeam,
   PdfProcess,
 } from "../infrastructure/pdf.ts";
+import { RsvgPdfRenderer } from "../infrastructure/pdf.ts";
 
 const CURL_EXECUTABLE = "/usr/bin/curl";
 const DEFAULT_DATA_ROOT = fileURLToPath(new URL("../../data", import.meta.url));
@@ -219,12 +220,12 @@ export const runCli = async (
       },
       {
         holidayResolver,
-        pdf: {
+        pdfRenderer: new RsvgPdfRenderer({
           fileSystem: dependencies.createPdfFileSystem?.() ?? new NodePdfFileSystem(),
           process,
           inspector: dependencies.createPdfInspectionSeam?.(process) ??
             new NodePdfInspectionSeam(process as NodePdfProcess),
-        },
+        }),
       },
     );
 

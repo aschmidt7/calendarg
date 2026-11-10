@@ -18,6 +18,7 @@ import {
 } from "../src/application/holiday-resolver.ts";
 import type { HolidayCoverage } from "../src/domain/holidays.ts";
 import type { PdfRenderDependencies } from "../src/infrastructure/pdf.ts";
+import { RsvgPdfRenderer } from "../src/infrastructure/pdf.ts";
 
 const request = {
   year: 2025,
@@ -89,7 +90,7 @@ const serviceDependencies = (
   events: string[] = [],
 ): GenerationServiceDependencies => ({
   holidayResolver: resolver,
-  pdf: pdfDependencies(events),
+  pdfRenderer: new RsvgPdfRenderer(pdfDependencies(events)),
 });
 
 test("rejects an invalid v1 request without resolving holidays or rendering", async () => {

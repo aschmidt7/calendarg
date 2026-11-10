@@ -1,4 +1,19 @@
 import { validateRestrictedSvg } from "../rendering/svg.ts";
+import type {
+  InspectedPdfArtifact,
+  PdfDiagnostic,
+  PdfRenderer,
+  PdfRenderOptions,
+  PdfRenderResult,
+} from "../application/pdf-renderer.ts";
+
+/** Re-exported so existing importers that reach them via this module keep compiling. */
+export type {
+  InspectedPdfArtifact,
+  PdfDiagnostic,
+  PdfRenderOptions,
+  PdfRenderResult,
+} from "../application/pdf-renderer.ts";
 
 export const DEFAULT_RSVG_CONVERT_PATH = "/usr/bin/rsvg-convert";
 export const DEFAULT_RENDER_TIMEOUT_MS = 20_000;
@@ -38,28 +53,6 @@ export interface PdfRenderDependencies {
   readonly fileSystem: PdfFileSystem;
   readonly process: PdfProcess;
   readonly inspector: PdfInspectionSeam;
-}
-
-export interface PdfRenderOptions {
-  readonly executable?: string;
-  readonly timeoutMs?: number;
-}
-
-export interface PdfDiagnostic {
-  readonly stage: "renderer" | "inspection";
-  readonly code: string;
-  readonly message: string;
-}
-
-export interface InspectedPdfArtifact {
-  readonly mediaType: "application/pdf";
-  readonly bytes: Uint8Array;
-  readonly pageCount: 1;
-}
-
-export interface PdfRenderResult {
-  readonly artifact: InspectedPdfArtifact;
-  readonly diagnostics: readonly PdfDiagnostic[];
 }
 
 export class PdfRenderError extends Error {
@@ -298,3 +291,29 @@ export const renderRestrictedSvgToPdf = async (
     await cleanup(dependencies.fileSystem, outputPath ? [inputPath, outputPath] : [inputPath]);
   }
 };
+
+/**
+ * Infrastructure adapter implementing the application's `PdfRenderer` port by
+ * delegating to `renderRestrictedSvgToPdf`. Infrastructure depending on the
+ * application port (rather than the reverse) is the intended direction.
+ */
+export class RsvgPdfRenderer implements PdfRenderer {
+  private readonly dependencies: PdfRenderDependencies;
+  private readonly baseOptions: PdfRenderOptions;
+
+  constructor(dependencies: PdfRenderDependencies, baseOptions: PdfRenderOptions = {}) {
+    this.dependencies = dependencies;
+    this.baseOptions = baseOptions;
+  }
+
+  render(
+    svg: string,
+    requiredTextTokens: readonly string[],
+    options: PdfRenderOptions = {},
+  ): Promise<PdfRenderResult> {
+    return renderRestrictedSvgToPdf(svg, requiredTextTokens, this.dependencies, {
+      ...this.baseOptions,
+      ...options,
+    });
+  }
+}

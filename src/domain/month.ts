@@ -1,8 +1,8 @@
 import type { Diagnostic } from "../contracts.ts";
-import type { HolidayResolution } from "../application/holiday-resolver.ts";
 import type {
   HolidayClassification,
   HolidayCoverage,
+  HolidayResolution,
   NormalizedHolidayRecord,
 } from "./holidays.ts";
 

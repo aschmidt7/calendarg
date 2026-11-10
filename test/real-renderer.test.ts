@@ -13,6 +13,7 @@ import {
   NodePdfInspectionSeam,
   NodePdfProcess,
 } from "../src/infrastructure/runtime.ts";
+import { RsvgPdfRenderer } from "../src/infrastructure/pdf.ts";
 
 const requiredExecutables = [
   "/usr/bin/rsvg-convert",
@@ -74,8 +75,10 @@ test("renders the monthly calendar with the local rsvg and Poppler toolchain", a
       holidayScope: ARGENTINE_NATIONAL_HOLIDAY_SCOPE,
     }, {
       holidayResolver: { resolve: async () => localHolidayResolution },
-      pdf: { fileSystem, process, inspector },
-      pdfOptions: { executable: "/usr/bin/rsvg-convert" },
+      pdfRenderer: new RsvgPdfRenderer(
+        { fileSystem, process, inspector },
+        { executable: "/usr/bin/rsvg-convert" },
+      ),
     });
 
     assert.equal(result.ok, true);

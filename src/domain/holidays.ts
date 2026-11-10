@@ -48,6 +48,13 @@ export interface HolidayCoverage {
   readonly holidays: readonly NormalizedHolidayRecord[];
 }
 
+/** The outcome of resolving holiday coverage for a requested year and scope. */
+export interface HolidayResolution {
+  readonly verification: "verified" | "unverified";
+  readonly coverage?: HolidayCoverage;
+  readonly diagnostics: readonly Diagnostic[];
+}
+
 export interface ValidHolidayCoverage {
   readonly ok: true;
   readonly value: HolidayCoverage;
