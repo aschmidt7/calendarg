@@ -6,6 +6,8 @@ import {
   DEJAVU_SANS_FONT_TOKEN,
   validateLayoutDocument,
   type LayoutDocument,
+  type LayoutElement,
+  type LayoutText,
 } from "../src/rendering/layout-ir.ts";
 import {
   deriveMonthlyCalendarLayout,
@@ -16,6 +18,9 @@ import { deriveWritableRegions } from "../src/domain/writable-regions.ts";
 import type { PhysicalBox } from "../src/domain/layout-policy.ts";
 import type { HolidayResolution } from "../src/application/holiday-resolver.ts";
 import type { HolidayCoverage } from "../src/domain/holidays.ts";
+
+const asText = (element: LayoutElement | undefined): LayoutText | undefined =>
+  element?.kind === "text" ? element : undefined;
 
 const verifiedCoverage = (
   year: number,
@@ -83,7 +88,7 @@ test("builds a frozen v1 canonical document in stable paint order", () => {
   );
   assert.equal(new Set(document.elements.map((element) => element.id)).size, document.elements.length);
   assert.equal(document.elements.find((element) => element.id === "day-number-0-2")?.role, "day-number");
-  assert.equal(document.elements.find((element) => element.id === "holiday-label-0-2-0")?.fontToken, DEJAVU_SANS_FONT_TOKEN);
+  assert.equal(asText(document.elements.find((element) => element.id === "holiday-label-0-2-0"))?.fontToken, DEJAVU_SANS_FONT_TOKEN);
   const heading = document.elements.find((element) => element.role === "heading");
   const weekdays = document.elements.filter((element) => element.role === "weekday-header");
   const firstDay = document.elements.find((element) => element.id === "adjacent-day-number-0-0");
@@ -102,7 +107,7 @@ test("builds a frozen v1 canonical document in stable paint order", () => {
   assert.equal(heading.fontSizeUm, 5_000);
   assert.ok(weekdays.every((weekday) => weekday.kind === "text" && weekday.fontSizeUm === 3_000));
   assert.equal(firstDay.fontSizeUm, 4_200);
-  assert.equal(document.elements.find((element) => element.id === "day-number-0-2")?.fontSizeUm, 4_200);
+  assert.equal(asText(document.elements.find((element) => element.id === "day-number-0-2"))?.fontSizeUm, 4_200);
   assert.deepEqual(
     { textAnchor: firstDay.textAnchor, dominantBaseline: firstDay.dominantBaseline },
     { textAnchor: "start", dominantBaseline: "hanging" },
@@ -232,7 +237,7 @@ test("rejects malformed documents, illegal roles, and overlapping protected regi
   assert.throws(() => validateLayoutDocument(retiredSafeArea), /safe area/i);
 
   const overlappingProtectedRegions = structuredClone(document) as LayoutDocument;
-  (overlappingProtectedRegions.protectedRegions as { id: string; box: unknown }[]).push({
+  (overlappingProtectedRegions.protectedRegions as unknown as { id: string; box: unknown }[]).push({
     id: "protected-duplicate",
     box: overlappingProtectedRegions.protectedRegions[0].box,
   });

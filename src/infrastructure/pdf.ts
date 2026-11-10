@@ -65,7 +65,11 @@ export class PdfRenderError extends Error {
   }
 }
 
-const failure = (stage: PdfDiagnostic["stage"], code: string, message: string): never => {
+const failure: (stage: PdfDiagnostic["stage"], code: string, message: string) => never = (
+  stage,
+  code,
+  message,
+) => {
   throw new PdfRenderError({ stage, code, message });
 };
 

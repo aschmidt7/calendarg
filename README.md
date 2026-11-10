@@ -97,7 +97,26 @@ macOS and Windows are not documented or tested targets for v1.
 The declared minimum runtime is **Node.js 22.6.0**, the first version that
 supports the `--experimental-strip-types` flag this project's `test`,
 `generate`, and `doctor` scripts rely on to run TypeScript sources directly
-without a build step.
+without a build step. This remains the supported production runtime for v1:
+there is no compiled-JavaScript build step, and none is planned while the
+project stays this size. `engines.node` in `package.json` encodes this
+minimum and is checked by `npm run doctor`/`npm run release-check`.
+
+## Static type checking
+
+```sh
+npm run typecheck
+```
+
+Runs `tsc --noEmit` against `tsconfig.json` (strict mode) over `src/` and
+`test/`. This is a dev-time and CI verification step only — it never emits
+JavaScript and never runs as part of `npm run generate`, `npm run doctor`, or
+`npm run release-check`, which stay dependency-free at runtime. It requires
+the `typescript` and `@types/node` devDependencies (`npm install`); these are
+not needed to run the product itself, only to typecheck it.
+
+`npm run verify` runs `typecheck`, the test suite, and `release-check` in
+sequence and is the recommended single command for CI and before a release.
 
 ## Test
 
@@ -105,7 +124,7 @@ without a build step.
 npm test
 ```
 
-The product currently has 98 passing tests, including real local
+The product currently has 101 passing tests, including real local
 `rsvg-convert`/Poppler integration.
 
 ## Evidence limitations

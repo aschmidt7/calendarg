@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildLayoutDocument, type LayoutDocument } from "../src/rendering/layout-ir.ts";
+import { buildLayoutDocument, type LayoutDocument, type LayoutText } from "../src/rendering/layout-ir.ts";
 import { DETERMINISTIC_HOLIDAY_TEXT_METRICS } from "../src/rendering/holiday-fitting.ts";
 import {
   deriveMonthlyCalendarLayout,
@@ -76,7 +76,7 @@ test("serializes a validated canonical document as one A4 restricted SVG", () =>
     ));
   }
   assert.match(svg, /<text x="11500" y="28700" width="24142" height="4500" font-size="4200" text-anchor="start" dominant-baseline="hanging" fill="#B8B8B8">/);
-  const dayNumbers = document.elements.filter((element) =>
+  const dayNumbers = document.elements.filter((element): element is LayoutText =>
     element.kind === "text" && (element.role === "day-number" || element.role === "adjacent-day-number"),
   );
   assert.ok(dayNumbers.some((element) => element.role === "day-number"));

@@ -74,7 +74,10 @@ const daysInMonth = (year: number, month: number): number => {
   return [4, 6, 9, 11].includes(month) ? 30 : 31;
 };
 
-const assertGregorianYearMonth = (year: unknown, month: unknown): asserts year is number => {
+const assertGregorianYearMonth: (year: unknown, month: unknown) => asserts year is number = (
+  year,
+  month,
+) => {
   if (
     !Number.isInteger(year) ||
     !Number.isInteger(month) ||

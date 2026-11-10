@@ -34,8 +34,8 @@ test("derives the exact five-row experimental 10 mm compact-header A4 template w
     box: { x: 172_857, y: 234_200, width: 27_143, height: 52_800 },
   });
   assert.equal(layout.cells[0].box.x, layout.gridBox.x);
-  assert.equal(layout.cells.at(-1)?.box.x + layout.cells.at(-1)?.box.width, 200_000);
-  assert.equal(layout.cells.at(-1)?.box.y + layout.cells.at(-1)?.box.height, 287_000);
+  assert.equal(layout.cells.at(-1)!.box.x + layout.cells.at(-1)!.box.width, 200_000);
+  assert.equal(layout.cells.at(-1)!.box.y + layout.cells.at(-1)!.box.height, 287_000);
 });
 
 test("derives six equal rational grid tracks from independently calculated boundaries", () => {
@@ -52,8 +52,8 @@ test("derives six equal rational grid tracks from independently calculated bound
     columnIndex: 6,
     box: { x: 172_857, y: 243_000, width: 27_143, height: 44_000 },
   });
-  assert.equal(layout.cells.at(-1)?.box.x + layout.cells.at(-1)?.box.width, 200_000);
-  assert.equal(layout.cells.at(-1)?.box.y + layout.cells.at(-1)?.box.height, 287_000);
+  assert.equal(layout.cells.at(-1)!.box.x + layout.cells.at(-1)!.box.width, 200_000);
+  assert.equal(layout.cells.at(-1)!.box.y + layout.cells.at(-1)!.box.height, 287_000);
 });
 
 test("rejects row counts outside the five-or-six-row policy and malformed weeks", () => {

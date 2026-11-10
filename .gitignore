@@ -13,3 +13,6 @@ docs/code-review-*.md
 calendar-*.pdf
 .tmp/
 *.tmp
+
+# Dev-only tooling (typecheck). Runtime remains dependency-free.
+node_modules/

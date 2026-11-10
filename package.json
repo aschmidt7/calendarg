@@ -8,8 +8,14 @@
   },
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm test && npm run release-check",
     "generate": "node --experimental-strip-types src/cli/cli.ts",
     "doctor": "node --experimental-strip-types src/cli/doctor.ts",
     "release-check": "node --experimental-strip-types src/cli/release-check.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "~5.9.0"
   }
 }

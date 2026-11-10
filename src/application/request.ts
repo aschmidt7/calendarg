@@ -30,7 +30,7 @@ export const validateGenerationRequest = (
   const diagnostics: Diagnostic[] = [];
   const { year, month, template, holidayScope } = input;
 
-  if (!Number.isInteger(year) || year < 1 || year > 9999) {
+  if (typeof year !== "number" || !Number.isInteger(year) || year < 1 || year > 9999) {
     diagnostics.push(
       error(
         "INVALID_GREGORIAN_YEAR",
@@ -40,7 +40,7 @@ export const validateGenerationRequest = (
     );
   }
 
-  if (!Number.isInteger(month) || month < 1 || month > 12) {
+  if (typeof month !== "number" || !Number.isInteger(month) || month < 1 || month > 12) {
     diagnostics.push(
       error(
         "INVALID_GREGORIAN_MONTH",

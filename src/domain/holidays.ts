@@ -126,7 +126,7 @@ export const validateHolidayCoverage = (
   }
 
   const { year, scope, coveredFrom, coveredThrough, provenance, holidays } = input;
-  if (!Number.isInteger(year) || year < 1 || year > 9999) {
+  if (typeof year !== "number" || !Number.isInteger(year) || year < 1 || year > 9999) {
     diagnostics.push(error("INVALID_COVERAGE_YEAR", "Coverage year must be a Gregorian year.", ["year"]));
   }
   if (scope !== ARGENTINE_NATIONAL_HOLIDAY_SCOPE) {
@@ -177,7 +177,7 @@ export const validateHolidayCoverage = (
         continue;
       }
 
-      const { date, label, classification, scope: recordScope } = record as HolidayRecordCandidate;
+      const { date, label, classification, scope: recordScope } = record as unknown as HolidayRecordCandidate;
       if (!isDateOnly(date)) {
         diagnostics.push(error("INVALID_HOLIDAY_DATE", "Holiday date must be date-only.", [...path, "date"]));
       } else if (Number(date.slice(0, 4)) !== year) {

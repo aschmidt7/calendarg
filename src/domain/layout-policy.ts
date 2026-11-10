@@ -105,7 +105,9 @@ const assertPolicy = (policy: LayoutPolicy): void => {
   }
 };
 
-const assertCalendarMatrix = (calendar: MonthlyCalendar): asserts calendar is MonthlyCalendar => {
+const assertCalendarMatrix: (calendar: MonthlyCalendar) => asserts calendar is MonthlyCalendar = (
+  calendar,
+) => {
   if (!Array.isArray(calendar?.weeks) || (calendar.weeks.length !== 5 && calendar.weeks.length !== 6)) {
     throw new RangeError("Monthly calendar must contain five or six weeks.");
   }
