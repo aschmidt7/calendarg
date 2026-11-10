@@ -266,3 +266,39 @@ test("writes real output atomically, refuses an existing file, and replaces it w
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("refuses atomically when the output appears after the existence check (no --force TOCTOU)", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "calendarg-cli-toctou-"));
+  try {
+    const outputPath = join(directory, "calendar.pdf");
+
+    const dependencies: CliDependencies = {
+      clock: fixedClock,
+      createRepository: () => ({
+        load: async () => localCoverage,
+        commit: async () => assert.fail("local coverage must not be replaced"),
+      }),
+      createHolidayGateway: () => ({
+        fetch: async () => assert.fail("gateway must not be called"),
+      }),
+      generate: completedGeneration,
+      // Simulate the race: the existence check sees no file, but another
+      // writer creates it before the atomic write runs.
+      outputExists: async () => {
+        await writeFile(outputPath, new Uint8Array([9, 9, 9]));
+        return false;
+      },
+    };
+
+    const result = await runCli(
+      ["--year", "2024", "--month", "6", "--output", outputPath],
+      dependencies,
+    );
+
+    assert.equal(result.exitCode, 1);
+    assert.match(result.stderr, /--force/);
+    assert.deepEqual([...await readFile(outputPath)], [9, 9, 9]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

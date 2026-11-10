@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { access, constants, mkdir, rename, writeFile } from "node:fs/promises";
+import { access, constants, link, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join, resolve } from "node:path";
 
@@ -65,7 +65,7 @@ export interface CliDependencies {
     dependencies: GenerationServiceDependencies,
   ) => Promise<GenerationServiceResult>;
   readonly outputExists?: (path: string) => Promise<boolean>;
-  readonly writeOutput?: (path: string, bytes: Uint8Array) => Promise<void>;
+  readonly writeOutput?: (path: string, bytes: Uint8Array, force: boolean) => Promise<void>;
 }
 
 class NodePdfProcessTransport implements Transport<string, unknown> {
@@ -91,11 +91,34 @@ const systemClock = (): Clock => {
   return { now: () => new Date(instant.getTime()) };
 };
 
-const defaultWriteOutput = async (path: string, bytes: Uint8Array): Promise<void> => {
+const outputExistsError = (path: string): Error =>
+  new Error(`Output path already exists: ${path}. Use --force to overwrite it.`);
+
+const defaultWriteOutput = async (
+  path: string,
+  bytes: Uint8Array,
+  force: boolean,
+): Promise<void> => {
   await mkdir(dirname(path), { recursive: true });
   const temporaryPath = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   await writeFile(temporaryPath, bytes);
-  await rename(temporaryPath, path);
+  try {
+    if (force) {
+      await rename(temporaryPath, path);
+      return;
+    }
+    // Atomic create-or-fail: link() rejects with EEXIST when the target
+    // already exists, closing the check-then-rename race a bare rename
+    // would leave open. The temporary hard link is then removed.
+    await link(temporaryPath, path);
+    await rm(temporaryPath, { force: true });
+  } catch (error) {
+    await rm(temporaryPath, { force: true });
+    if (!force && (error as { code?: string }).code === "EEXIST") {
+      throw outputExistsError(path);
+    }
+    throw error;
+  }
 };
 
 const defaultOutputExists = async (path: string): Promise<boolean> => {
@@ -193,10 +216,7 @@ export const runCli = async (
   if (!parsed.force) {
     const exists = await (dependencies.outputExists ?? defaultOutputExists)(parsed.outputPath);
     if (exists) {
-      return failure(
-        1,
-        `Output path already exists: ${parsed.outputPath}. Use --force to overwrite it.`,
-      );
+      return failure(1, message(outputExistsError(parsed.outputPath)));
     }
   }
 
@@ -231,7 +251,7 @@ export const runCli = async (
 
     if (!result.ok) return failure(1, "Calendar generation rejected the request.");
 
-    await (dependencies.writeOutput ?? defaultWriteOutput)(parsed.outputPath, result.artifact.bytes);
+    await (dependencies.writeOutput ?? defaultWriteOutput)(parsed.outputPath, result.artifact.bytes, parsed.force);
     return {
       exitCode: 0,
       stdout: `${report(parsed.outputPath, result)}\n`,
