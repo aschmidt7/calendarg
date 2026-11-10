@@ -34,7 +34,8 @@ export interface ReleaseCheckDependencies {
   readonly changelogPath: string;
 }
 
-const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SEMVER_PATTERN =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
 interface PackageJsonCheckResult {
   readonly checks: readonly ReleaseCheckCheck[];
@@ -59,11 +60,22 @@ const checkPackageJson = async (
   }
 
   let parsed: unknown;
+  let text: string;
   try {
-    const text = await fileSystem.readText(path);
+    text = await fileSystem.readText(path);
+  } catch (error) {
+    const detail = `${path} could not be read: ${errorDetail(error)}`;
+    return {
+      checks: [
+        { name: "package.json:version", status: "error", detail },
+        { name: "package.json:engines", status: "error", detail },
+      ],
+    };
+  }
+  try {
     parsed = JSON.parse(text);
   } catch (error) {
-    const detail = `${path} could not be read or parsed: ${errorDetail(error)}`;
+    const detail = `${path} could not be parsed: ${errorDetail(error)}`;
     return {
       checks: [
         { name: "package.json:version", status: "error", detail },
@@ -96,6 +108,8 @@ const checkPackageJson = async (
   return { checks: [versionCheck, enginesCheck], version };
 };
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const checkReadme = async (
   path: string,
   version: string | undefined,
@@ -110,7 +124,12 @@ const checkReadme = async (
       detail: "No package version is available to verify against README.md.",
     };
   }
-  const text = await fileSystem.readText(path);
+  let text: string;
+  try {
+    text = await fileSystem.readText(path);
+  } catch (error) {
+    return { name: "readme", status: "error", detail: `${path} could not be read: ${errorDetail(error)}` };
+  }
   return text.includes(version)
     ? { name: "readme", status: "ok", detail: `${path} mentions version ${version}.` }
     : { name: "readme", status: "missing", detail: `${path} does not mention version ${version}.` };
@@ -130,14 +149,23 @@ const checkChangelog = async (
       detail: "No package version is available to verify against CHANGELOG.md.",
     };
   }
-  const text = await fileSystem.readText(path);
-  const hasSection = text.includes(`[${version}]`) || text.includes(version);
+  let text: string;
+  try {
+    text = await fileSystem.readText(path);
+  } catch (error) {
+    return { name: "changelog", status: "error", detail: `${path} could not be read: ${errorDetail(error)}` };
+  }
+  // Require an actual Markdown heading section for the version (e.g.
+  // "## [0.1.0] - 2026-09-27"), not merely the version string anywhere in
+  // the file (prose, a comparison link, or an "Unreleased" note).
+  const sectionHeading = new RegExp(`^#{1,6}\\s*\\[${escapeRegExp(version)}\\]`, "m");
+  const hasSection = sectionHeading.test(text);
   return hasSection
     ? { name: "changelog", status: "ok", detail: `${path} documents version ${version}.` }
     : {
         name: "changelog",
         status: "missing",
-        detail: `${path} does not document a section for version ${version}.`,
+        detail: `${path} does not document a heading section for version ${version}.`,
       };
 };
 

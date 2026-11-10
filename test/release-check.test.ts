@@ -128,6 +128,57 @@ test("fails when package.json has no non-empty semver version", async () => {
   assert.equal(version?.status, "missing");
 });
 
+test("fails when CHANGELOG.md mentions the version only in prose, not a heading section", async () => {
+  const report = await runReleaseCheck({
+    ...baseDependencies(),
+    fileSystem: fakeFileSystem({
+      "package.json": PACKAGE_JSON,
+      "README.md": README,
+      "CHANGELOG.md": "# Changelog\n\nSee the 0.1.0 release notes elsewhere, not documented here yet.\n",
+    }),
+  });
+
+  assert.equal(report.ok, false);
+  const changelog = report.checks.find((check) => check.name === "changelog");
+  assert.equal(changelog?.status, "missing");
+});
+
+test("fails when package.json declares an invalid semver version (leading zero)", async () => {
+  const report = await runReleaseCheck({
+    ...baseDependencies(),
+    fileSystem: fakeFileSystem({
+      "package.json": JSON.stringify({ name: "calendarg", version: "01.2.3", engines: { node: ">=22.6.0" } }),
+      "README.md": README,
+      "CHANGELOG.md": CHANGELOG,
+    }),
+  });
+
+  assert.equal(report.ok, false);
+  const version = report.checks.find((check) => check.name === "package.json:version");
+  assert.equal(version?.status, "missing");
+});
+
+test("reports an error instead of rejecting when README.md disappears after the existence check", async () => {
+  const files = {
+    "package.json": PACKAGE_JSON,
+    "README.md": README,
+    "CHANGELOG.md": CHANGELOG,
+  };
+  const flakyFileSystem: ReleaseCheckFileSystem = {
+    fileExists: async (path: string) => path in files,
+    readText: async (path: string) => {
+      if (path === "README.md") throw new Error("ENOENT: README.md");
+      return files[path as keyof typeof files];
+    },
+  };
+
+  const report = await runReleaseCheck({ ...baseDependencies(), fileSystem: flakyFileSystem });
+
+  assert.equal(report.ok, false);
+  const readme = report.checks.find((check) => check.name === "readme");
+  assert.equal(readme?.status, "error");
+});
+
 test("fails when a doctor check fails, such as a missing executable", async () => {
   const missingExecutable = new Error("spawn /usr/bin/rsvg-convert ENOENT") as Error & { code: string };
   missingExecutable.code = "ENOENT";
