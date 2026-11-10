@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { access, constants, mkdir, rename, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import {
   ARGENTINE_NATIONAL_HOLIDAY_SCOPE,
@@ -43,6 +43,7 @@ interface ParsedArguments {
   readonly month: number;
   readonly outputPath: string;
   readonly dataRoot: string;
+  readonly force: boolean;
 }
 
 export interface CliRunResult {
@@ -62,6 +63,7 @@ export interface CliDependencies {
     input: unknown,
     dependencies: GenerationServiceDependencies,
   ) => Promise<GenerationServiceResult>;
+  readonly outputExists?: (path: string) => Promise<boolean>;
   readonly writeOutput?: (path: string, bytes: Uint8Array) => Promise<void>;
 }
 
@@ -90,7 +92,18 @@ const systemClock = (): Clock => {
 
 const defaultWriteOutput = async (path: string, bytes: Uint8Array): Promise<void> => {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, bytes);
+  const temporaryPath = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+  await writeFile(temporaryPath, bytes);
+  await rename(temporaryPath, path);
+};
+
+const defaultOutputExists = async (path: string): Promise<boolean> => {
+  try {
+    await access(path, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 const sha256 = (bytes: Uint8Array): string =>
@@ -113,12 +126,15 @@ const parsePositiveInteger = (flag: string, value: string | undefined): number =
 };
 
 const parseArguments = (argv: readonly string[]): ParsedArguments => {
+  const force = argv.includes("--force");
+  const positional = argv.filter((token) => token !== "--force");
+
   const values = new Map<string, string>();
   const supported = new Set(["--year", "--month", "--output", "--data-root"]);
 
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
+  for (let index = 0; index < positional.length; index += 2) {
+    const flag = positional[index];
+    const value = positional[index + 1];
     if (!supported.has(flag)) throw new Error(`Unsupported argument: ${flag}.`);
     if (values.has(flag)) throw new Error(`Argument may only be supplied once: ${flag}.`);
     if (value === undefined || value.startsWith("--")) {
@@ -143,7 +159,7 @@ const parseArguments = (argv: readonly string[]): ParsedArguments => {
   const dataRoot = values.get("--data-root") ?? DEFAULT_DATA_ROOT;
   if (outputPath === "" || dataRoot === "") throw new Error("Output and data-root paths must not be empty.");
 
-  return { year, month, outputPath, dataRoot };
+  return { year, month, outputPath, dataRoot, force };
 };
 
 const report = (
@@ -171,6 +187,16 @@ export const runCli = async (
     parsed = parseArguments(argv);
   } catch (error) {
     return failure(2, message(error));
+  }
+
+  if (!parsed.force) {
+    const exists = await (dependencies.outputExists ?? defaultOutputExists)(parsed.outputPath);
+    if (exists) {
+      return failure(
+        1,
+        `Output path already exists: ${parsed.outputPath}. Use --force to overwrite it.`,
+      );
+    }
   }
 
   try {

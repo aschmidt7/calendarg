@@ -32,11 +32,16 @@ Arguments:
 - `--month 1..12` — required month.
 - `--output PATH` — optional PDF output path.
 - `--data-root PATH` — optional local holiday coverage root.
+- `--force` — optional; overwrite an existing output path. Without it, the
+  command refuses to replace an existing file and exits with status 1.
 
 The command prints JSON containing the output path, holiday verification state,
 diagnostics, SHA-256, and PDF facts. If local coverage is unavailable, it may
 use the public ArgentinaDatos fallback; if that fails, generation succeeds with
-an explicitly unverified holiday state and no unverified labels.
+an explicitly unverified holiday state and no unverified labels. Output is
+written atomically: the PDF is written to a temporary file next to the target
+path, then renamed into place, so a failed or interrupted run never leaves a
+partially written output file.
 
 ## Check your environment
 
@@ -67,7 +72,7 @@ without a build step.
 npm test
 ```
 
-The product currently has 81 passing tests, including real local
+The product currently has 85 passing tests, including real local
 `rsvg-convert`/Poppler integration.
 
 ## Evidence limitations

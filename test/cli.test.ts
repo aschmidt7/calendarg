@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -144,4 +147,122 @@ test("returns a nonzero result when rendering fails", async () => {
 
   assert.equal(result.exitCode, 1);
   assert.match(result.stderr, /renderer unavailable/i);
+});
+
+test("refuses to overwrite an existing output path without --force", async () => {
+  let writeCalls = 0;
+  const dependencies: CliDependencies = {
+    clock: fixedClock,
+    createRepository: () => ({
+      load: async () => localCoverage,
+      commit: async () => assert.fail("local coverage must not be replaced"),
+    }),
+    createHolidayGateway: () => ({
+      fetch: async () => assert.fail("gateway must not be called"),
+    }),
+    generate: completedGeneration,
+    outputExists: async () => true,
+    writeOutput: async () => {
+      writeCalls += 1;
+    },
+  };
+
+  const result = await runCli(
+    ["--year", "2024", "--month", "6", "--output", "out/june.pdf"],
+    dependencies,
+  );
+
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stderr, /out\/june\.pdf.*--force/i);
+  assert.equal(writeCalls, 0);
+});
+
+test("overwrites an existing output path when --force is given", async () => {
+  const writes: string[] = [];
+  const dependencies: CliDependencies = {
+    clock: fixedClock,
+    createRepository: () => ({
+      load: async () => localCoverage,
+      commit: async () => assert.fail("local coverage must not be replaced"),
+    }),
+    createHolidayGateway: () => ({
+      fetch: async () => assert.fail("gateway must not be called"),
+    }),
+    generate: completedGeneration,
+    outputExists: async () => true,
+    writeOutput: async (path) => {
+      writes.push(path);
+    },
+  };
+
+  const result = await runCli(
+    ["--year", "2024", "--month", "6", "--output", "out/june.pdf", "--force"],
+    dependencies,
+  );
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(writes, ["out/june.pdf"]);
+});
+
+test("proceeds without a check when the output path does not exist", async () => {
+  const dependencies: CliDependencies = {
+    clock: fixedClock,
+    createRepository: () => ({
+      load: async () => localCoverage,
+      commit: async () => assert.fail("local coverage must not be replaced"),
+    }),
+    createHolidayGateway: () => ({
+      fetch: async () => assert.fail("gateway must not be called"),
+    }),
+    generate: completedGeneration,
+    outputExists: async () => false,
+    writeOutput: async () => {},
+  };
+
+  const result = await runCli(
+    ["--year", "2024", "--month", "6", "--output", "out/june.pdf"],
+    dependencies,
+  );
+
+  assert.equal(result.exitCode, 0);
+});
+
+test("writes real output atomically, refuses an existing file, and replaces it with --force", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "calendarg-cli-output-"));
+  try {
+    const outputPath = join(directory, "calendar.pdf");
+    await writeFile(outputPath, new Uint8Array([9, 9, 9]));
+
+    const dependencies: CliDependencies = {
+      clock: fixedClock,
+      createRepository: () => ({
+        load: async () => localCoverage,
+        commit: async () => assert.fail("local coverage must not be replaced"),
+      }),
+      createHolidayGateway: () => ({
+        fetch: async () => assert.fail("gateway must not be called"),
+      }),
+      generate: completedGeneration,
+    };
+
+    const refused = await runCli(
+      ["--year", "2024", "--month", "6", "--output", outputPath],
+      dependencies,
+    );
+    assert.equal(refused.exitCode, 1);
+    assert.match(refused.stderr, /--force/);
+    assert.deepEqual([...await readFile(outputPath)], [9, 9, 9]);
+
+    const forced = await runCli(
+      ["--year", "2024", "--month", "6", "--output", outputPath, "--force"],
+      dependencies,
+    );
+    assert.equal(forced.exitCode, 0);
+    assert.deepEqual([...await readFile(outputPath)], [1, 2, 3, 4]);
+
+    const entries = await readdir(directory);
+    assert.deepEqual(entries, ["calendar.pdf"]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
