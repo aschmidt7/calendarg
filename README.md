@@ -38,13 +38,36 @@ diagnostics, SHA-256, and PDF facts. If local coverage is unavailable, it may
 use the public ArgentinaDatos fallback; if that fails, generation succeeds with
 an explicitly unverified holiday state and no unverified labels.
 
+## Check your environment
+
+```sh
+npm run doctor
+```
+
+Prints a JSON report of the Node.js runtime and native prerequisites
+(`rsvg-convert`, Poppler's `pdfinfo`/`pdffonts`/`pdftotext`, `curl`, the DejaVu
+Sans font, and a writable local data root) and exits non-zero if any check
+fails. This is the documented first step when generation fails in a new
+environment.
+
+## Supported platform and runtime
+
+Calendarg is currently developed and verified on Linux only; its native
+prerequisites are invoked at fixed `/usr/bin/*` paths (see `npm run doctor`).
+macOS and Windows are not documented or tested targets for v1.
+
+The declared minimum runtime is **Node.js 22.6.0**, the first version that
+supports the `--experimental-strip-types` flag this project's `test`,
+`generate`, and `doctor` scripts rely on to run TypeScript sources directly
+without a build step.
+
 ## Test
 
 ```sh
 npm test
 ```
 
-The product currently has 67 passing tests, including real local
+The product currently has 81 passing tests, including real local
 `rsvg-convert`/Poppler integration.
 
 ## Evidence limitations

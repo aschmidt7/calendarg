@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.6.0"
+  },
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts",
-    "generate": "node --experimental-strip-types src/cli/cli.ts"
+    "generate": "node --experimental-strip-types src/cli/cli.ts",
+    "doctor": "node --experimental-strip-types src/cli/doctor.ts"
   }
 }
