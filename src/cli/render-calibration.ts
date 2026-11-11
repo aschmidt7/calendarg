@@ -15,6 +15,7 @@ import {
   NodePdfInspectionSeam,
   NodePdfProcess,
 } from "../infrastructure/runtime.ts";
+import { RsvgPdfRenderer } from "../infrastructure/pdf.ts";
 
 const HOLIDAY_LABEL = "Día del Trabajador";
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
@@ -95,13 +96,13 @@ const run = async (): Promise<void> => {
           return fixtureResolution;
         },
       },
-      pdf: {
+      pdfRenderer: new RsvgPdfRenderer({
         fileSystem: new NodePdfFileSystem({
           tempRoot: join(tmpdir(), "monthly-calendar-render-calibration"),
         }),
         process: processAdapter,
         inspector,
-      },
+      }),
     },
   );
 

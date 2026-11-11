@@ -161,6 +161,27 @@ test("rejects PDFs without embedded DejaVu Sans", async () => {
   );
 });
 
+test("accepts embedded DejaVu Sans even with an encoding column shifting the emb position", async () => {
+  const result = await render(createHarness({
+    pdffonts: "name                                 type              encoding         emb sub uni object ID\n"
+      + "------------------------------------ ----------------- ---------------- --- --- --- ---------\n"
+      + "XYUYOJ+DejaVuSans                    TrueType          WinAnsi          yes yes yes      7  0\n",
+  }).dependencies);
+
+  assert.equal(result.artifact.pageCount, 1);
+});
+
+test("rejects DejaVu Sans fixtures with emb=no even when another column says yes", async () => {
+  await assert.rejects(
+    render(createHarness({
+      pdffonts: "name                                 type              emb sub uni object ID\n"
+        + "------------------------------------ ----------------- --- --- --- ---------\n"
+        + "ABCDEF+DejaVuSans                    TrueType          no  yes yes     10  0\n",
+    }).dependencies),
+    /embedded DejaVu Sans/,
+  );
+});
+
 test("rejects PDFs missing required Spanish and Latin text", async () => {
   await assert.rejects(
     render(createHarness({ pdftotext: "Mayo 2024\nmiércoles\n" }).dependencies),

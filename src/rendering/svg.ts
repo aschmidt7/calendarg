@@ -14,7 +14,7 @@ const NUMBER = "(0|[1-9]\\d*)";
 const RECT = new RegExp(`^<rect x="${NUMBER}" y="${NUMBER}" width="${NUMBER}" height="${NUMBER}"\\/>`);
 const TEXT = new RegExp(`^<text x="${NUMBER}" y="${NUMBER}" width="${NUMBER}" height="${NUMBER}" font-size="${NUMBER}" text-anchor="(start|middle)" dominant-baseline="(hanging|middle)"( fill="(#B8B8B8)")?>([^<]*)<\\/text>`);
 
-const fail = (message: string): never => {
+const fail: (message: string) => never = (message) => {
   throw new RangeError(`Restricted SVG ${message}.`);
 };
 
@@ -143,7 +143,9 @@ export const serializeRestrictedSvg = (document: LayoutDocument): string => {
 };
 
 /** Validates the closed, metadata-free SVG transport grammar accepted by v1. */
-export const validateRestrictedSvg = (value: unknown): asserts value is string => {
+export const validateRestrictedSvg: (value: unknown) => asserts value is string = (
+  value,
+) => {
   if (typeof value !== "string" || !value.startsWith(SVG_OPEN) || !value.endsWith(SVG_CLOSE)) {
     fail("must have the exact A4 SVG root");
   }

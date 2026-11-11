@@ -1,4 +1,19 @@
 import { validateRestrictedSvg } from "../rendering/svg.ts";
+import type {
+  InspectedPdfArtifact,
+  PdfDiagnostic,
+  PdfRenderer,
+  PdfRenderOptions,
+  PdfRenderResult,
+} from "../application/pdf-renderer.ts";
+
+/** Re-exported so existing importers that reach them via this module keep compiling. */
+export type {
+  InspectedPdfArtifact,
+  PdfDiagnostic,
+  PdfRenderOptions,
+  PdfRenderResult,
+} from "../application/pdf-renderer.ts";
 
 export const DEFAULT_RSVG_CONVERT_PATH = "/usr/bin/rsvg-convert";
 export const DEFAULT_RENDER_TIMEOUT_MS = 20_000;
@@ -40,28 +55,6 @@ export interface PdfRenderDependencies {
   readonly inspector: PdfInspectionSeam;
 }
 
-export interface PdfRenderOptions {
-  readonly executable?: string;
-  readonly timeoutMs?: number;
-}
-
-export interface PdfDiagnostic {
-  readonly stage: "renderer" | "inspection";
-  readonly code: string;
-  readonly message: string;
-}
-
-export interface InspectedPdfArtifact {
-  readonly mediaType: "application/pdf";
-  readonly bytes: Uint8Array;
-  readonly pageCount: 1;
-}
-
-export interface PdfRenderResult {
-  readonly artifact: InspectedPdfArtifact;
-  readonly diagnostics: readonly PdfDiagnostic[];
-}
-
 export class PdfRenderError extends Error {
   readonly diagnostics: readonly PdfDiagnostic[];
 
@@ -72,7 +65,11 @@ export class PdfRenderError extends Error {
   }
 }
 
-const failure = (stage: PdfDiagnostic["stage"], code: string, message: string): never => {
+const failure: (stage: PdfDiagnostic["stage"], code: string, message: string) => never = (
+  stage,
+  code,
+  message,
+) => {
   throw new PdfRenderError({ stage, code, message });
 };
 
@@ -112,10 +109,91 @@ const assertOneA4PortraitPage = (pdfinfo: string): void => {
   }
 };
 
+const HEADER_NAME_TOKEN = /^name$/i;
+const SEPARATOR_LINE = /^-+(\s+-+)*$/;
+
+interface PdfFontColumnSpan {
+  readonly label: string;
+  readonly start: number;
+  readonly end: number;
+}
+
+/**
+ * `pdffonts` prints fixed-width columns whose set varies by PDF (an
+ * `encoding` column may or may not appear between `type` and `emb`), so the
+ * embedded column index cannot be assumed. Deriving spans from the dashed
+ * separator line and the header above it locates `emb` by its label instead
+ * of a fixed position, and rejects an unrelated `sub`/`uni` column of `yes`
+ * masking `emb no`.
+ */
+const pdfFontColumnSpans = (
+  headerLine: string,
+  separatorLine: string,
+): readonly PdfFontColumnSpan[] => {
+  const spans: PdfFontColumnSpan[] = [];
+  const dashGroup = /-+/g;
+  let match: RegExpExecArray | null;
+  while ((match = dashGroup.exec(separatorLine)) !== null) {
+    spans.push({
+      label: headerLine.slice(match.index, match.index + match[0].length).trim().toLowerCase(),
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+  return spans;
+};
+
+const sliceByColumnSpans = (
+  line: string,
+  spans: readonly PdfFontColumnSpan[],
+): Record<string, string> => {
+  const values: Record<string, string> = {};
+  spans.forEach((span, index) => {
+    const isLastSpan = index === spans.length - 1;
+    values[span.label] = (isLastSpan ? line.slice(span.start) : line.slice(span.start, span.end)).trim();
+  });
+  return values;
+};
+
+const columnIndex = (headerTokens: readonly string[], label: string): number =>
+  headerTokens.findIndex((token) => token.toLowerCase() === label);
+
+/** Each row exposes at least `name` and `emb`, keyed by their header label. */
+const pdfFontRows = (pdffonts: string): ReadonlyArray<Record<string, string>> => {
+  const lines = pdffonts.split(/\r?\n/).filter((line) => line.trim() !== "");
+  if (lines.length === 0) return [];
+
+  const firstToken = lines[0].trim().split(/\s+/)[0] ?? "";
+  if (!HEADER_NAME_TOKEN.test(firstToken)) {
+    return lines.map((line) => {
+      const tokens = line.trim().split(/\s+/);
+      return { name: tokens[0] ?? "", emb: tokens[2] ?? "" };
+    });
+  }
+
+  const headerLine = lines[0];
+  const dataLines = lines.slice(1);
+  if (dataLines.length > 0 && SEPARATOR_LINE.test(dataLines[0].trim())) {
+    const spans = pdfFontColumnSpans(headerLine, dataLines[0]);
+    return dataLines.slice(1).map((line) => sliceByColumnSpans(line, spans));
+  }
+
+  const headerTokens = headerLine.trim().split(/\s+/);
+  const nameIndex = columnIndex(headerTokens, "name");
+  const embIndex = columnIndex(headerTokens, "emb");
+  return dataLines.map((line) => {
+    const tokens = line.trim().split(/\s+/);
+    return {
+      name: tokens[nameIndex >= 0 ? nameIndex : 0] ?? "",
+      emb: tokens[embIndex >= 0 ? embIndex : 2] ?? "",
+    };
+  });
+};
+
 const assertEmbeddedDejaVuSans = (pdffonts: string): void => {
-  const embeddedDejaVu = pdffonts
-    .split(/\r?\n/)
-    .some((line) => /dejavu[\s-]*sans/i.test(line) && /\byes\b/i.test(line));
+  const embeddedDejaVu = pdfFontRows(pdffonts).some((row) =>
+    /dejavu[\s-]*sans/i.test(row.name ?? "") && (row.emb ?? "").toLowerCase() === "yes"
+  );
   if (!embeddedDejaVu) {
     failure("inspection", "missing-embedded-dejavu-sans", "PDF inspection requires embedded DejaVu Sans.");
   }
@@ -217,3 +295,29 @@ export const renderRestrictedSvgToPdf = async (
     await cleanup(dependencies.fileSystem, outputPath ? [inputPath, outputPath] : [inputPath]);
   }
 };
+
+/**
+ * Infrastructure adapter implementing the application's `PdfRenderer` port by
+ * delegating to `renderRestrictedSvgToPdf`. Infrastructure depending on the
+ * application port (rather than the reverse) is the intended direction.
+ */
+export class RsvgPdfRenderer implements PdfRenderer {
+  private readonly dependencies: PdfRenderDependencies;
+  private readonly baseOptions: PdfRenderOptions;
+
+  constructor(dependencies: PdfRenderDependencies, baseOptions: PdfRenderOptions = {}) {
+    this.dependencies = dependencies;
+    this.baseOptions = baseOptions;
+  }
+
+  render(
+    svg: string,
+    requiredTextTokens: readonly string[],
+    options: PdfRenderOptions = {},
+  ): Promise<PdfRenderResult> {
+    return renderRestrictedSvgToPdf(svg, requiredTextTokens, this.dependencies, {
+      ...this.baseOptions,
+      ...options,
+    });
+  }
+}

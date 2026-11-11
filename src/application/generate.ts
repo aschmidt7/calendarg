@@ -15,12 +15,10 @@ import {
   PROPOSED_COMPACT_HEADER_A4_POLICY,
 } from "../domain/layout-policy.ts";
 import { buildMonthlyCalendar, type MonthlyCalendar } from "../domain/month.ts";
-import {
-  renderRestrictedSvgToPdf,
-  type InspectedPdfArtifact,
-  type PdfRenderDependencies,
-  type PdfRenderOptions,
-} from "../infrastructure/pdf.ts";
+import type {
+  InspectedPdfArtifact,
+  PdfRenderer,
+} from "./pdf-renderer.ts";
 import { validateGenerationRequest } from "./request.ts";
 import { serializeRestrictedSvg } from "../rendering/svg.ts";
 import { deriveWritableRegions } from "../domain/writable-regions.ts";
@@ -36,8 +34,7 @@ export interface HolidayResolverCompatible {
  */
 export interface GenerationServiceDependencies {
   readonly holidayResolver: HolidayResolverCompatible;
-  readonly pdf: PdfRenderDependencies;
-  readonly pdfOptions?: PdfRenderOptions;
+  readonly pdfRenderer: PdfRenderer;
 }
 
 export interface GenerationTraceMetadata {
@@ -103,12 +100,7 @@ export const generateMonthlyCalendarPdf = async (
   const writableRegions = deriveWritableRegions(layout, calendar);
   const document = buildLayoutDocument(calendar, layout, writableRegions);
   const svg = serializeRestrictedSvg(document);
-  const pdf = await renderRestrictedSvgToPdf(
-    svg,
-    requiredPdfText(document),
-    dependencies.pdf,
-    dependencies.pdfOptions,
-  );
+  const pdf = await dependencies.pdfRenderer.render(svg, requiredPdfText(document));
 
   return {
     ok: true,

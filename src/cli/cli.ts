@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { access, constants, link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import {
   ARGENTINE_NATIONAL_HOLIDAY_SCOPE,
@@ -30,9 +30,35 @@ import type {
   PdfInspectionSeam,
   PdfProcess,
 } from "../infrastructure/pdf.ts";
+import { RsvgPdfRenderer } from "../infrastructure/pdf.ts";
 
 const CURL_EXECUTABLE = "/usr/bin/curl";
 const DEFAULT_DATA_ROOT = fileURLToPath(new URL("../../data", import.meta.url));
+
+const USAGE = `Calendarg generates local-first printable monthly calendar PDFs.
+
+Usage: npm run generate -- [options]
+
+Options:
+  --year YYYY       Required Gregorian year (1-9999).
+  --month 1..12     Required month.
+  --output PATH     Optional PDF output path (default: calendar-<year>-<month>.pdf).
+  --data-root PATH  Optional local holiday coverage root.
+  --force           Overwrite an existing output path without failing.
+  --help, -h        Show this usage text and exit.
+  --version, -V     Print the package version and exit.
+
+Related commands:
+  npm run doctor          Check environment prerequisites.
+  npm run release-check   Verify release metadata and the environment.
+`;
+
+const readPackageVersion = async (): Promise<string> => {
+  const packageJsonUrl = new URL("../../package.json", import.meta.url);
+  const text = await readFile(packageJsonUrl, "utf8");
+  const parsed = JSON.parse(text) as { version?: unknown };
+  return typeof parsed.version === "string" ? parsed.version : "";
+};
 
 interface NodeTextProcess extends PdfProcess {
   runText(executable: string, args: readonly string[]): Promise<string>;
@@ -43,6 +69,7 @@ interface ParsedArguments {
   readonly month: number;
   readonly outputPath: string;
   readonly dataRoot: string;
+  readonly force: boolean;
 }
 
 export interface CliRunResult {
@@ -62,7 +89,8 @@ export interface CliDependencies {
     input: unknown,
     dependencies: GenerationServiceDependencies,
   ) => Promise<GenerationServiceResult>;
-  readonly writeOutput?: (path: string, bytes: Uint8Array) => Promise<void>;
+  readonly outputExists?: (path: string) => Promise<boolean>;
+  readonly writeOutput?: (path: string, bytes: Uint8Array, force: boolean) => Promise<void>;
 }
 
 class NodePdfProcessTransport implements Transport<string, unknown> {
@@ -88,9 +116,43 @@ const systemClock = (): Clock => {
   return { now: () => new Date(instant.getTime()) };
 };
 
-const defaultWriteOutput = async (path: string, bytes: Uint8Array): Promise<void> => {
+const outputExistsError = (path: string): Error =>
+  new Error(`Output path already exists: ${path}. Use --force to overwrite it.`);
+
+const defaultWriteOutput = async (
+  path: string,
+  bytes: Uint8Array,
+  force: boolean,
+): Promise<void> => {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, bytes);
+  const temporaryPath = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+  await writeFile(temporaryPath, bytes);
+  try {
+    if (force) {
+      await rename(temporaryPath, path);
+      return;
+    }
+    // Atomic create-or-fail: link() rejects with EEXIST when the target
+    // already exists, closing the check-then-rename race a bare rename
+    // would leave open. The temporary hard link is then removed.
+    await link(temporaryPath, path);
+    await rm(temporaryPath, { force: true });
+  } catch (error) {
+    await rm(temporaryPath, { force: true });
+    if (!force && (error as { code?: string }).code === "EEXIST") {
+      throw outputExistsError(path);
+    }
+    throw error;
+  }
+};
+
+const defaultOutputExists = async (path: string): Promise<boolean> => {
+  try {
+    await access(path, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 const sha256 = (bytes: Uint8Array): string =>
@@ -113,12 +175,15 @@ const parsePositiveInteger = (flag: string, value: string | undefined): number =
 };
 
 const parseArguments = (argv: readonly string[]): ParsedArguments => {
+  const force = argv.includes("--force");
+  const positional = argv.filter((token) => token !== "--force");
+
   const values = new Map<string, string>();
   const supported = new Set(["--year", "--month", "--output", "--data-root"]);
 
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
+  for (let index = 0; index < positional.length; index += 2) {
+    const flag = positional[index];
+    const value = positional[index + 1];
     if (!supported.has(flag)) throw new Error(`Unsupported argument: ${flag}.`);
     if (values.has(flag)) throw new Error(`Argument may only be supplied once: ${flag}.`);
     if (value === undefined || value.startsWith("--")) {
@@ -133,11 +198,17 @@ const parseArguments = (argv: readonly string[]): ParsedArguments => {
   const month = parsePositiveInteger("--month", values.get("--month"));
   if (month < 1 || month > 12) throw new Error("--month must be between 1 and 12.");
 
+  if ((year === 9999 && month === 12) || (year === 1 && month === 1)) {
+    throw new Error(
+      "--year/--month must not generate an adjacent date outside year 1 through 9999.",
+    );
+  }
+
   const outputPath = values.get("--output") ?? `calendar-${year}-${String(month).padStart(2, "0")}.pdf`;
   const dataRoot = values.get("--data-root") ?? DEFAULT_DATA_ROOT;
   if (outputPath === "" || dataRoot === "") throw new Error("Output and data-root paths must not be empty.");
 
-  return { year, month, outputPath, dataRoot };
+  return { year, month, outputPath, dataRoot, force };
 };
 
 const report = (
@@ -160,11 +231,26 @@ export const runCli = async (
   argv: readonly string[],
   dependencies: CliDependencies = {},
 ): Promise<CliRunResult> => {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    return { exitCode: 0, stdout: USAGE, stderr: "" };
+  }
+  if (argv.includes("--version") || argv.includes("-V")) {
+    const version = await readPackageVersion();
+    return { exitCode: 0, stdout: `${version}\n`, stderr: "" };
+  }
+
   let parsed: ParsedArguments;
   try {
     parsed = parseArguments(argv);
   } catch (error) {
     return failure(2, message(error));
+  }
+
+  if (!parsed.force) {
+    const exists = await (dependencies.outputExists ?? defaultOutputExists)(parsed.outputPath);
+    if (exists) {
+      return failure(1, message(outputExistsError(parsed.outputPath)));
+    }
   }
 
   try {
@@ -187,18 +273,18 @@ export const runCli = async (
       },
       {
         holidayResolver,
-        pdf: {
+        pdfRenderer: new RsvgPdfRenderer({
           fileSystem: dependencies.createPdfFileSystem?.() ?? new NodePdfFileSystem(),
           process,
           inspector: dependencies.createPdfInspectionSeam?.(process) ??
             new NodePdfInspectionSeam(process as NodePdfProcess),
-        },
+        }),
       },
     );
 
     if (!result.ok) return failure(1, "Calendar generation rejected the request.");
 
-    await (dependencies.writeOutput ?? defaultWriteOutput)(parsed.outputPath, result.artifact.bytes);
+    await (dependencies.writeOutput ?? defaultWriteOutput)(parsed.outputPath, result.artifact.bytes, parsed.force);
     return {
       exitCode: 0,
       stdout: `${report(parsed.outputPath, result)}\n`,

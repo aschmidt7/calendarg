@@ -11,7 +11,11 @@ import {
   type HolidayCoverage,
   type HolidayCoverageCandidate,
   type HolidayProvenance,
+  type HolidayResolution,
 } from "../domain/holidays.ts";
+
+/** Re-exported so existing importers that reach it via this module keep compiling. */
+export type { HolidayResolution };
 
 const ARGENTINA_DATOS_URL = "https://api.argentinadatos.com/v1/feriados";
 
@@ -26,12 +30,6 @@ export interface HolidayGateway {
     scope: HolidayScope,
     provenance: HolidayProvenance,
   ): Promise<HolidayCoverageCandidate>;
-}
-
-export interface HolidayResolution {
-  readonly verification: "verified" | "unverified";
-  readonly coverage?: HolidayCoverage;
-  readonly diagnostics: readonly Diagnostic[];
 }
 
 const diagnostic = (

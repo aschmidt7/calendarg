@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, constants, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -175,5 +175,62 @@ export class NodePdfInspectionSeam implements PdfInspectionSeam {
 
   pdftotext(path: string): Promise<string> {
     return this.#process.runText("/usr/bin/pdftotext", [path, "-"]);
+  }
+}
+
+/** Filesystem checks for the `doctor` diagnostics, reusing plain Node fs/promises. */
+export class NodeDoctorFileSystem {
+  async fileExists(path: string): Promise<boolean> {
+    try {
+      await access(path, constants.F_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async ensureWritableDirectory(path: string): Promise<boolean> {
+    try {
+      await mkdir(path, { recursive: true });
+      await access(path, constants.W_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Process adapter for the `doctor` diagnostics. Poppler's `-v` flag prints
+ * its version banner to stderr rather than stdout, so this captures both
+ * streams and falls back to stderr when stdout is empty, unlike the PDF
+ * inspection seam above which only ever needs stdout.
+ */
+export class NodeDoctorProcess {
+  runText(executable: string, args: readonly string[]): Promise<string> {
+    return new Promise((resolveText, rejectText) => {
+      let child;
+      try {
+        child = spawn(executable, [...args], { shell: false, stdio: ["ignore", "pipe", "pipe"] });
+      } catch (error) {
+        rejectText(error);
+        return;
+      }
+
+      let stdout = "";
+      let stderr = "";
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk: string) => { stdout += chunk; });
+      child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+      child.once("error", (error) => rejectText(error));
+      child.once("close", (exitCode) => {
+        if (exitCode !== 0) {
+          rejectText(new Error(`${executable} exited with code ${exitCode ?? "signal"}: ${stderr || stdout}`));
+          return;
+        }
+        resolveText(stdout !== "" ? stdout : stderr);
+      });
+    });
   }
 }

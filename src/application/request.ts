@@ -30,7 +30,7 @@ export const validateGenerationRequest = (
   const diagnostics: Diagnostic[] = [];
   const { year, month, template, holidayScope } = input;
 
-  if (!Number.isInteger(year) || year < 1 || year > 9999) {
+  if (typeof year !== "number" || !Number.isInteger(year) || year < 1 || year > 9999) {
     diagnostics.push(
       error(
         "INVALID_GREGORIAN_YEAR",
@@ -40,12 +40,25 @@ export const validateGenerationRequest = (
     );
   }
 
-  if (!Number.isInteger(month) || month < 1 || month > 12) {
+  if (typeof month !== "number" || !Number.isInteger(month) || month < 1 || month > 12) {
     diagnostics.push(
       error(
         "INVALID_GREGORIAN_MONTH",
         "Month must be an integer from 1 through 12.",
         ["month"],
+      ),
+    );
+  }
+
+  if (
+    diagnostics.length === 0 &&
+    ((year === 9999 && month === 12) || (year === 1 && month === 1))
+  ) {
+    diagnostics.push(
+      error(
+        "ADJACENT_DATE_OUT_OF_RANGE",
+        "Calendar month must not generate an adjacent date outside year 1 through 9999.",
+        ["year", "month"],
       ),
     );
   }

@@ -416,7 +416,11 @@ const allowedRoles = new Set<LayoutRole>([
   "holiday-label",
 ]);
 
-const assertElement = (element: unknown, safeArea: PhysicalBox, index: number): asserts element is LayoutElement => {
+const assertElement: (
+  element: unknown,
+  safeArea: PhysicalBox,
+  index: number,
+) => asserts element is LayoutElement = (element, safeArea, index) => {
   if (!isRecord(element) || typeof element.id !== "string" || element.id === "" || element.z !== index) {
     throw new RangeError("Layout elements must have stable IDs and canonical z-order.");
   }
@@ -452,7 +456,9 @@ const assertElement = (element: unknown, safeArea: PhysicalBox, index: number): 
   }
 };
 
-export const validateLayoutDocument = (value: unknown): asserts value is LayoutDocument => {
+export const validateLayoutDocument: (value: unknown) => asserts value is LayoutDocument = (
+  value,
+) => {
   if (!isRecord(value) || value.version !== LAYOUT_DOCUMENT_VERSION || value.templateId !== MONTHLY_CALENDAR_TEMPLATE_ID) {
     throw new RangeError("Layout document must use the supported v1 template.");
   }
@@ -494,7 +500,8 @@ export const validateLayoutDocument = (value: unknown): asserts value is LayoutD
     "heading",
     ...Array(7).fill("weekday-header") as LayoutRole[],
   ];
-  if (value.elements.length < prefixRoles.length || prefixRoles.some((role, index) => value.elements[index].role !== role)) {
+  const elements = value.elements;
+  if (elements.length < prefixRoles.length || prefixRoles.some((role, index) => elements[index].role !== role)) {
     throw new RangeError("Layout elements must use canonical page, grid, cell, header order.");
   }
 
@@ -598,6 +605,8 @@ export const validateLayoutDocument = (value: unknown): asserts value is LayoutD
     }
     if (
       typeof region.id !== "string" ||
+      typeof region.rowIndex !== "number" ||
+      typeof region.columnIndex !== "number" ||
       !Number.isInteger(region.rowIndex) ||
       !Number.isInteger(region.columnIndex) ||
       typeof region.isoDate !== "string" ||

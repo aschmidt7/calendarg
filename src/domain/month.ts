@@ -1,8 +1,8 @@
 import type { Diagnostic } from "../contracts.ts";
-import type { HolidayResolution } from "../application/holiday-resolver.ts";
 import type {
   HolidayClassification,
   HolidayCoverage,
+  HolidayResolution,
   NormalizedHolidayRecord,
 } from "./holidays.ts";
 
@@ -74,7 +74,10 @@ const daysInMonth = (year: number, month: number): number => {
   return [4, 6, 9, 11].includes(month) ? 30 : 31;
 };
 
-const assertGregorianYearMonth = (year: unknown, month: unknown): asserts year is number => {
+const assertGregorianYearMonth: (year: unknown, month: unknown) => asserts year is number = (
+  year,
+  month,
+) => {
   if (
     !Number.isInteger(year) ||
     !Number.isInteger(month) ||
@@ -84,6 +87,14 @@ const assertGregorianYearMonth = (year: unknown, month: unknown): asserts year i
     (month as number) > 12
   ) {
     throw new RangeError("Calendar request must contain a valid Gregorian year and month.");
+  }
+  if (
+    ((year as number) === 9999 && (month as number) === 12) ||
+    ((year as number) === 1 && (month as number) === 1)
+  ) {
+    throw new RangeError(
+      "Calendar month must not generate an adjacent date outside year 1 through 9999.",
+    );
   }
 };
 
