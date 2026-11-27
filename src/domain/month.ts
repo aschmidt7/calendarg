@@ -1,4 +1,5 @@
 import type { Diagnostic } from "../contracts.ts";
+import type { MoonPhaseName, MoonPhaseOccurrence } from "./moon.ts";
 import type {
   HolidayClassification,
   HolidayCoverage,
@@ -31,6 +32,13 @@ const MONDAY_FIRST_WEEKDAY_HEADERS = [
   "Dom",
 ] as const;
 
+const MOON_PHASE_NAME_SET: ReadonlySet<string> = new Set([
+  "new",
+  "first-quarter",
+  "full",
+  "last-quarter",
+]);
+
 export interface MonthlyCalendarRequest {
   readonly year: number;
   readonly month: number;
@@ -47,6 +55,8 @@ export interface MonthlyCalendarCell {
   readonly dayNumber: number;
   readonly weekdayIndex: number;
   readonly holiday?: CalendarHoliday;
+  /** Primary moon phase falling on this date; current-month cells only. */
+  readonly moonPhase?: MoonPhaseName;
 }
 
 export interface MonthlyCalendar {
@@ -185,9 +195,32 @@ const defaultUnverifiedResolution: HolidayResolution = {
   diagnostics: [],
 };
 
+const assertMoonOccurrencesMatchRequest: (
+  request: MonthlyCalendarRequest,
+  occurrences: readonly MoonPhaseOccurrence[],
+) => void = (request, occurrences) => {
+  const { year, month } = request;
+  for (const occurrence of occurrences) {
+    if (
+      typeof occurrence?.isoDate !== "string" ||
+      !occurrence.isoDate.startsWith(
+        `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-`,
+      )
+    ) {
+      throw new RangeError(
+        "Moon phase occurrences must belong to the requested calendar month.",
+      );
+    }
+    if (!MOON_PHASE_NAME_SET.has(occurrence.phase)) {
+      throw new RangeError("Moon phase occurrences must contain a valid primary phase.");
+    }
+  }
+};
+
 export const buildMonthlyCalendar = (
   request: MonthlyCalendarRequest,
   holidayResolution: HolidayResolution = defaultUnverifiedResolution,
+  moonOccurrences: readonly MoonPhaseOccurrence[] = [],
 ): MonthlyCalendar => {
   if (typeof request !== "object" || request === null) {
     throw new RangeError("Calendar request must contain a valid Gregorian year and month.");
@@ -200,6 +233,10 @@ export const buildMonthlyCalendar = (
     : [];
   const verified = holidayResolution?.verification === "verified";
   const holidays = verified ? verifiedHolidays(holidayResolution, year) : new Map<string, CalendarHoliday>();
+  assertMoonOccurrencesMatchRequest(request, moonOccurrences);
+  const moonPhaseByIsoDate = new Map(
+    moonOccurrences.map((occurrence) => [occurrence.isoDate, occurrence.phase]),
+  );
   const firstWeekday = mondayFirstWeekdayIndex(year, month, 1);
   const rows = Math.max(5, Math.ceil((firstWeekday + daysInMonth(year, month)) / 7));
   let date: GregorianDate = { year, month, day: 1 };
@@ -215,12 +252,16 @@ export const buildMonthlyCalendar = (
         ? "current"
         : "adjacent";
       const holiday = membership === "current" ? holidays.get(isoDate) : undefined;
+      // Moon phases are calendar-information annotations for current-month
+      // dates only: adjacent-month cells carry no phase marker by contract.
+      const moonPhase = membership === "current" ? moonPhaseByIsoDate.get(isoDate) : undefined;
       week.push({
         isoDate,
         membership,
         dayNumber: date.day,
         weekdayIndex,
         ...(holiday ? { holiday } : {}),
+        ...(moonPhase ? { moonPhase } : {}),
       });
       date = nextDate(date);
     }

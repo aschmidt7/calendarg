@@ -5,6 +5,7 @@ import {
   buildMonthlyCalendar,
   type MonthlyCalendar,
 } from "../src/domain/month.ts";
+import { deriveMoonPhasesForMonth } from "../src/domain/moon.ts";
 import type { HolidayResolution } from "../src/application/holiday-resolver.ts";
 import type { HolidayCoverage } from "../src/domain/holidays.ts";
 
@@ -161,4 +162,40 @@ test("rejects invalid Gregorian requests and impossible verified attachments", (
 test("rejects a December 9999 or January 1 request whose adjacent date would leave year 1-9999", () => {
   assert.throws(() => buildMonthlyCalendar({ year: 9999, month: 12 }), RangeError);
   assert.throws(() => buildMonthlyCalendar({ year: 1, month: 1 }), RangeError);
+});
+
+test("current-month cells carry the moon phase for their date; adjacent cells never do", () => {
+  // May 2024 (SHN): full moon on 2024-05-23, new 2024-05-08, first-quarter
+  // 2024-05-15, last-quarter 2024-05-01 and 2024-05-30.
+  const occurrences = deriveMoonPhasesForMonth({ year: 2024, month: 5 });
+  const calendar = buildMonthlyCalendar({ year: 2024, month: 5 }, undefined, occurrences);
+
+  const cells = calendar.weeks.flat();
+  const byIsoDate = new Map(cells.map((cell) => [cell.isoDate, cell]));
+  assert.equal(byIsoDate.get("2024-05-08")?.moonPhase, "new");
+  assert.equal(byIsoDate.get("2024-05-15")?.moonPhase, "first-quarter");
+  assert.equal(byIsoDate.get("2024-05-23")?.moonPhase, "full");
+  assert.equal(byIsoDate.get("2024-05-01")?.moonPhase, "last-quarter");
+  assert.equal(byIsoDate.get("2024-05-30")?.moonPhase, "last-quarter");
+  // A cell with no phase carries no moonPhase key.
+  assert.equal("moonPhase" in byIsoDate.get("2024-05-09")!, false);
+  // Adjacent-month cells never carry a phase even if a phase lands on them.
+  for (const cell of cells) {
+    if (cell.membership === "adjacent") assert.equal(cell.moonPhase, undefined);
+  }
+});
+
+test("rejects moon occurrences outside the requested month or with unknown phase", () => {
+  assert.throws(
+    () => buildMonthlyCalendar({ year: 2024, month: 5 }, undefined, [
+      { isoDate: "2024-06-03", phase: "full" },
+    ]),
+    /Moon phase occurrences must belong to the requested calendar month/,
+  );
+  assert.throws(
+    () => buildMonthlyCalendar({ year: 2024, month: 5 }, undefined, [
+      { isoDate: "2024-05-08", phase: "crescent" as never },
+    ]),
+    /Moon phase occurrences must contain a valid primary phase/,
+  );
 });
