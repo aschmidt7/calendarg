@@ -10,12 +10,15 @@ Calendarg is a local-first printable monthly calendar generator.
 - One A4 portrait PDF per requested month.
 - Monday-first Spanish weekday grid.
 - Argentine national holidays (`inamovible` and `trasladable`).
+- Primary moon phases (new, first quarter, full, last quarter) computed locally
+  and marked with a classic black-and-white glyph in the day-number band
+  (Argentine official time, fixed UTC-3).
 - Local JSON holiday coverage first, with ArgentinaDatos as a replaceable fallback.
 - Adjacent-month dates shown in light gray.
 - Offline generation with an explicit unverified-holiday status.
 - Experimental 10 mm safe-area baseline validated on the documented HP LaserJet 1020 setup.
 
-Moon phases, additional templates, editing, cloud services, and backend features are deferred.
+Additional templates, editing, cloud services, and backend features are deferred.
 
 ## Generate a calendar
 

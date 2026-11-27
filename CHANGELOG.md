@@ -2,6 +2,17 @@
 
 All notable Calendarg changes are documented here.
 
+## [Unreleased]
+
+### Added
+
+- Primary moon phases (new, first quarter, full, last quarter) computed by a
+  pure local astronomical calculation (Meeus chapter 49) in Argentine official
+  time (fixed UTC-3), marked with a classic black-and-white glyph in the
+  day-number band of each cell.
+- Moon-phase regression fixtures against Servicio de Hidrografía Naval
+  official tables for 2024–2026.
+
 ## [0.1.0] - 2026-09-27
 
 ### Added
