@@ -22,7 +22,9 @@ and GitHub issue #18. Branch `feat/moon-phases`.
 - Restricted SVG: bounded `<circle>` (outlined = new, solid = full) and
   half-disc `<path>` (first quarter fills left, last quarter fills right;
   southern-hemisphere view, verified against the official SHN phase icons,
-  closing advisory R3-001 of the native review). Arbitrary path data and non-1,500 µm radii
+  closing advisory R3-001 of the native review). Quarter glyphs additionally
+  carry a full outline ring (chosen from 5 rendered design options by the
+  user for print legibility at 3 mm: option A, ring + filled half). Arbitrary path data and non-1,500 µm radii
   are rejected. `src/rendering/svg.ts`.
 
 ## Protected handwriting region: unchanged

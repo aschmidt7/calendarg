@@ -95,7 +95,7 @@ test("renders the monthly calendar with the local rsvg and Poppler toolchain", a
     // bounded glyph in the day-number band of its cell (S7/S8 pin).
     const moonCircles = result.svg.match(/<circle cx="\d+" cy="\d+" r="1500"( fill="black"| fill="none" stroke="black" stroke-width="300")?\/>/g) ?? [];
     const moonHalfDiscs = result.svg.match(/<path d="M \d+ \d+ A 1500 1500 0 0 [01] \d+ \d+ Z" fill="black"\/>/g) ?? [];
-    assert.equal(moonCircles.length, 2); // new + full
+    assert.equal(moonCircles.length, 5); // new + full + 3 quarter outline rings
     assert.equal(moonHalfDiscs.length, 3); // last-quarter, first-quarter, last-quarter
 
     const inspectionPath = await fileSystem.allocateTemporaryPath(".pdf");

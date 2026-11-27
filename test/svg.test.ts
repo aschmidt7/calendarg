@@ -194,7 +194,7 @@ test("serializes moon markers as bounded circles and half-discs", async () => {
   const svg = serializeRestrictedSvg(document);
   const circles = svg.match(/<circle cx="\d+" cy="\d+" r="1500"( fill="black"| fill="none" stroke="black" stroke-width="300")?\/>/g) ?? [];
   const halfDiscs = svg.match(/<path d="M \d+ \d+ A 1500 1500 0 0 [01] \d+ \d+ Z" fill="black"\/>/g) ?? [];
-  assert.equal(circles.length, 2); // new + full
+  assert.equal(circles.length, 5); // new + full + 3 quarter outline rings
   assert.equal(halfDiscs.length, 3); // LQ, FQ, LQ
   assert.ok(circles.some((circle) => circle.endsWith('fill="black"/>'))); // full moon is solid
   assert.ok(circles.some((circle) => circle.includes('fill="none" stroke="black"'))); // new moon is an outlined empty disc

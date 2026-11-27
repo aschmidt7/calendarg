@@ -177,7 +177,12 @@ const serializeMoonMarker = (element: LayoutShape): string => {
     return `<circle cx="${cx}" cy="${cy}" r="${MOON_MARKER_RADIUS_UM}"${attributes}/>`;
   }
   const sweep = element.fillSide === "left" ? 0 : 1;
-  return `<path d="M ${cx} ${cy - MOON_MARKER_RADIUS_UM} A ${MOON_MARKER_RADIUS_UM} ${MOON_MARKER_RADIUS_UM} 0 0 ${sweep} ${cx} ${cy + MOON_MARKER_RADIUS_UM} Z" fill="black"/>`;
+  // Quarter glyphs read better printed: the filled half sits inside a full
+  // outline ring (option A of the print-design review), drawn AFTER the
+  // outline so the fill edge stays crisp against the ring interior.
+  const ring = `<circle cx="${cx}" cy="${cy}" r="${MOON_MARKER_RADIUS_UM}" fill="none" stroke="black" stroke-width="300"/>`;
+  const half = `<path d="M ${cx} ${cy - MOON_MARKER_RADIUS_UM} A ${MOON_MARKER_RADIUS_UM} ${MOON_MARKER_RADIUS_UM} 0 0 ${sweep} ${cx} ${cy + MOON_MARKER_RADIUS_UM} Z" fill="black"/>`;
+  return `${ring}${half}`;
 };
 
 /** Validates the closed, metadata-free SVG transport grammar accepted by v1. */
