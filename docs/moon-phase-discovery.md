@@ -39,9 +39,9 @@ Calendarg Iteration 2, first activity. Report only: no implementation in this is
 | Phase | Glyph |
 | --- | --- |
 | New | Outlined circle (unfilled) |
-| First quarter | Circle with right half filled |
+| First quarter | Circle with left half filled |
 | Full | Solid filled circle |
-| Last quarter | Circle with left half filled |
+| Last quarter | Circle with right half filled |
 
 - Glyph diameter: 3,000 µm (3 mm outline diameter; filled area slightly smaller due to the
   300 µm stroke used across the document).

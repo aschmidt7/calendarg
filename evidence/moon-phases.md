@@ -20,8 +20,9 @@ and GitHub issue #18. Branch `feat/moon-phases`.
   day-number band (y 1,500–6,000 µm from cell top) and never overlap a
   protected writable region. `src/rendering/layout-ir.ts`.
 - Restricted SVG: bounded `<circle>` (outlined = new, solid = full) and
-  half-disc `<path>` (first quarter fills right, last quarter fills left;
-  southern-hemisphere convention). Arbitrary path data and non-1,500 µm radii
+  half-disc `<path>` (first quarter fills left, last quarter fills right;
+  southern-hemisphere view, verified against the official SHN phase icons,
+  closing advisory R3-001 of the native review). Arbitrary path data and non-1,500 µm radii
   are rejected. `src/rendering/svg.ts`.
 
 ## Protected handwriting region: unchanged

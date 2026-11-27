@@ -200,7 +200,7 @@ test("serializes moon markers as bounded circles and half-discs", async () => {
   assert.ok(circles.some((circle) => !circle.includes("fill"))); // new moon is outlined
 });
 
-test("half-disc orientation fills right for first quarter and left for last quarter", async () => {
+test("half-disc orientation: first quarter fills left, last quarter fills right (southern hemisphere)", async () => {
   const { deriveMoonPhasesForMonth } = await import("../src/domain/moon.ts");
   const calendar = buildMonthlyCalendar(
     { year: 2024, month: 5 },
@@ -219,11 +219,13 @@ test("half-disc orientation fills right for first quarter and left for last quar
     assert.equal(Number(y2) - Number(y1), 3000, "half-disc chord must span the vertical diameter");
     assert.ok(match[0]);
   }
-  // First quarter: sweep 1 (from the top point the clockwise arc passes the
-  // rightmost point) => filled right half. Last quarter: sweep 0 => left half.
+  // First quarter: sweep 0 (from the top point the counterclockwise arc
+  // passes the leftmost point) => filled left half — the southern-hemisphere
+  // view where the waxing moon is lit on the left (verified against the
+  // official SHN phase icons, LUNA2.jpg). Last quarter: sweep 1 => right half.
   const sweeps = halfDiscs.map((match) => match[3]);
-  assert.ok(sweeps.includes("1"), "first-quarter marker must fill the right half");
-  assert.ok(sweeps.includes("0"), "last-quarter marker must fill the left half");
+  assert.ok(sweeps.includes("0"), "first-quarter marker must fill the left half");
+  assert.ok(sweeps.includes("1"), "last-quarter marker must fill the right half");
 });
 test("rejects arbitrary path data and wrong moon-marker geometry", async () => {
   const { deriveMoonPhasesForMonth } = await import("../src/domain/moon.ts");

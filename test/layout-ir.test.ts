@@ -267,11 +267,11 @@ test("current-month cells with a moon phase emit one canonical moon-marker shape
   assert.ok(firstQuarter);
   assert.equal(firstQuarter.phase, "first-quarter");
   assert.equal(firstQuarter.shape, "half-disc");
-  assert.equal(firstQuarter.fillSide, "right");
+  assert.equal(firstQuarter.fillSide, "left");
   const lastQuarter = byId.get("moon-marker-0-2");
   assert.ok(lastQuarter);
   assert.equal(lastQuarter.phase, "last-quarter");
-  assert.equal(lastQuarter.fillSide, "left");
+  assert.equal(lastQuarter.fillSide, "right");
   const fullMoon = markers.find((marker) => marker.phase === "full");
   assert.ok(fullMoon);
   assert.equal(fullMoon.shape, "circle");

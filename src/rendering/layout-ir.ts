@@ -97,8 +97,8 @@ export interface LayoutShape extends LayoutElementBase {
   readonly shape: "circle" | "half-disc";
   /** Phase the glyph denotes; validated against the primary phase set. */
   readonly phase: MoonPhaseMarkerPhase;
-  /** "right" for a filled right half (first quarter, southern hemisphere),
-   *  "left" for a filled left half (last quarter). Ignored for circles. */
+  /** "left" for a filled left half (first quarter, southern-hemisphere view),
+   *  "right" for a filled right half (last quarter). Ignored for circles. */
   readonly fillSide?: "left" | "right";
   readonly rowIndex: number;
   readonly columnIndex: number;
@@ -366,7 +366,7 @@ export const buildLayoutDocument = (
           shape: cell.moonPhase === "new" || cell.moonPhase === "full" ? "circle" : "half-disc",
           phase: cell.moonPhase,
           ...(cell.moonPhase === "first-quarter" || cell.moonPhase === "last-quarter"
-            ? { fillSide: cell.moonPhase === "first-quarter" ? "right" as const : "left" as const }
+            ? { fillSide: cell.moonPhase === "first-quarter" ? "left" as const : "right" as const }
             : {}),
           rowIndex,
           columnIndex,

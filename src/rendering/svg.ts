@@ -155,8 +155,9 @@ const MOON_MARKER_DIAMETER_UM = 3_000;
 const MOON_MARKER_RADIUS_UM = MOON_MARKER_DIAMETER_UM / 2;
 
 /**
- * Classic black-and-white phase glyph (southern-hemisphere convention:
- * first quarter fills the right half, last quarter fills the left half).
+ * Classic black-and-white phase glyph (southern-hemisphere view, verified
+ * against the official SHN phase icons: the waxing first-quarter moon is
+ * lit on the LEFT half; the waning last-quarter moon on the RIGHT half).
  * The half-disc chord is the VERTICAL diameter: from the top point a
  * sweep-1 arc passes through the rightmost point (SVG y grows downward),
  * so sweep 1 fills the right half and sweep 0 the left half.
