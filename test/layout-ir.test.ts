@@ -14,6 +14,7 @@ import {
   PROPOSED_COMPACT_HEADER_A4_POLICY,
 } from "../src/domain/layout-policy.ts";
 import { buildMonthlyCalendar } from "../src/domain/month.ts";
+import { deriveMoonPhasesForMonth } from "../src/domain/moon.ts";
 import { deriveWritableRegions } from "../src/domain/writable-regions.ts";
 import type { PhysicalBox } from "../src/domain/layout-policy.ts";
 import type { HolidayResolution } from "../src/application/holiday-resolver.ts";
@@ -242,4 +243,81 @@ test("rejects malformed documents, illegal roles, and overlapping protected regi
     box: overlappingProtectedRegions.protectedRegions[0].box,
   });
   assert.throws(() => validateLayoutDocument(overlappingProtectedRegions), /overlap/i);
+});
+
+test("current-month cells with a moon phase emit one canonical moon-marker shape", () => {
+  const calendar = buildMonthlyCalendar(
+    { year: 2024, month: 5 },
+    undefined,
+    deriveMoonPhasesForMonth({ year: 2024, month: 5 }),
+  );
+  const layout = deriveMonthlyCalendarLayout(calendar, PROPOSED_COMPACT_HEADER_A4_POLICY);
+  const document = buildLayoutDocument(calendar, layout, deriveWritableRegions(layout, calendar));
+  validateLayoutDocument(document);
+
+  const markers = document.elements.filter((element) => element.kind === "shape");
+  assert.equal(markers.length, 5); // 2024-05: LQ 01, new 08, FQ 15, full 23, LQ 30
+  for (const marker of markers) {
+    assert.equal(marker.role, "moon-marker");
+    assert.equal(marker.box.width, 3000);
+    assert.equal(marker.box.height, 3000);
+  }
+  const byId = new Map(markers.map((marker) => [marker.id, marker]));
+  const firstQuarter = byId.get("moon-marker-2-2");
+  assert.ok(firstQuarter);
+  assert.equal(firstQuarter.phase, "first-quarter");
+  assert.equal(firstQuarter.shape, "half-disc");
+  assert.equal(firstQuarter.fillSide, "left");
+  const lastQuarter = byId.get("moon-marker-0-2");
+  assert.ok(lastQuarter);
+  assert.equal(lastQuarter.phase, "last-quarter");
+  assert.equal(lastQuarter.fillSide, "right");
+  const fullMoon = markers.find((marker) => marker.phase === "full");
+  assert.ok(fullMoon);
+  assert.equal(fullMoon.shape, "circle");
+  assert.equal(fullMoon.fillSide, undefined);
+  // Glyph lives in the day-number band, never in the protected region.
+  const cellBoxes = new Map(layout.cells.map((cell) => [`${cell.rowIndex}:${cell.columnIndex}`, cell.box]));
+  for (const marker of markers) {
+    const cellBox = cellBoxes.get(`${marker.rowIndex}:${marker.columnIndex}`);
+    assert.ok(cellBox);
+    assert.ok(marker.box.y >= cellBox.y + 1_500, "marker inside day band top");
+    assert.ok(marker.box.y + marker.box.height <= cellBox.y + 6_000, "marker inside day band bottom");
+  }
+});
+
+test("validation rejects a malformed moon marker", () => {
+  const calendar = buildMonthlyCalendar(
+    { year: 2024, month: 5 },
+    undefined,
+    deriveMoonPhasesForMonth({ year: 2024, month: 5 }),
+  );
+  const layout = deriveMonthlyCalendarLayout(calendar, PROPOSED_COMPACT_HEADER_A4_POLICY);
+  const document = structuredClone(
+    buildLayoutDocument(calendar, layout, deriveWritableRegions(layout, calendar)),
+  ) as LayoutDocument;
+  // Wrong diameter must be rejected by the bounded-glyph contract.
+  const marker = document.elements.find((element) => element.role === "moon-marker") as {
+    box: { width: number; height: number };
+  };
+  marker.box.width = 2_999;
+  assert.throws(() => validateLayoutDocument(document), /3 mm diameter/);
+  // Shape/phase inconsistency must be rejected (a quarter moon is not a circle).
+  const document2 = structuredClone(
+    buildLayoutDocument(calendar, layout, deriveWritableRegions(layout, calendar)),
+  ) as LayoutDocument;
+  const marker2 = document2.elements.find((element) => element.role === "moon-marker") as {
+    shape: string;
+    phase: string;
+  };
+  marker2.shape = "circle";
+  marker2.phase = "first-quarter";
+  assert.throws(() => validateLayoutDocument(document2), /shape, phase, and fill side/);
+});
+
+test("validation still rejects a plain 'moon' text role", () => {
+  const document = structuredClone(buildDocument()) as LayoutDocument;
+  const illegalRole = document.elements[0] as { role: string };
+  illegalRole.role = "moon";
+  assert.throws(() => validateLayoutDocument(document), /role/i);
 });

@@ -3,6 +3,7 @@ import {
   DEJAVU_SANS_FONT_TOKEN,
   validateLayoutDocument,
   type LayoutDocument,
+  type LayoutShape,
   type LayoutText,
 } from "./layout-ir.ts";
 import type { PhysicalBox } from "../domain/layout-policy.ts";
@@ -13,6 +14,13 @@ const SVG_CLOSE = "</svg>";
 const NUMBER = "(0|[1-9]\\d*)";
 const RECT = new RegExp(`^<rect x="${NUMBER}" y="${NUMBER}" width="${NUMBER}" height="${NUMBER}"\\/>`);
 const TEXT = new RegExp(`^<text x="${NUMBER}" y="${NUMBER}" width="${NUMBER}" height="${NUMBER}" font-size="${NUMBER}" text-anchor="(start|middle)" dominant-baseline="(hanging|middle)"( fill="(#B8B8B8)")?>([^<]*)<\\/text>`);
+// Bounded moon glyph grammar: an outlined or filled circle and a half-disc
+// built from exactly one arc and one closing line segment. The half-disc path
+// is "M cx cy-r A r r 0 0 sweep cx cy+r Z" (vertical diameter chord; sweep 1
+// fills the right half, sweep 0 the left half), so the arc sweep flag is the
+// only variable component.
+const CIRCLE = new RegExp(`^<circle cx="${NUMBER}" cy="${NUMBER}" r="${NUMBER}"( fill="black"| fill="none" stroke="black" stroke-width="300")?\\/>`);
+const HALF_DISC = new RegExp(`^<path d="M ${NUMBER} ${NUMBER} A ${NUMBER} ${NUMBER} 0 0 [01] ${NUMBER} ${NUMBER} Z" fill="black"\\/>`);
 
 const fail: (message: string) => never = (message) => {
   throw new RangeError(`Restricted SVG ${message}.`);
@@ -135,11 +143,46 @@ export const serializeRestrictedSvg = (document: LayoutDocument): string => {
 
   const content = document.elements.map((element) => {
     if (element.kind === "rectangle") return `<rect ${serializeBox(element.box)}/>`;
+    if (element.kind === "shape") return serializeMoonMarker(element);
     return serializeText(element);
   }).join("");
   const svg = `${SVG_OPEN}<style>${SVG_STYLE}</style>${content}${SVG_CLOSE}`;
   validateRestrictedSvg(svg);
   return svg;
+};
+
+const MOON_MARKER_DIAMETER_UM = 3_000;
+const MOON_MARKER_RADIUS_UM = MOON_MARKER_DIAMETER_UM / 2;
+
+/**
+ * Classic black-and-white phase glyph (southern-hemisphere view, verified
+ * against the official SHN phase icons: the waxing first-quarter moon is
+ * lit on the LEFT half; the waning last-quarter moon on the RIGHT half).
+ * The half-disc chord is the VERTICAL diameter: from the top point a
+ * sweep-1 arc passes through the rightmost point (SVG y grows downward),
+ * so sweep 1 fills the right half and sweep 0 the left half.
+ * Serialization is fully derived from the canonical moon-marker element;
+ * nothing free-form may reach the SVG body.
+ */
+const serializeMoonMarker = (element: LayoutShape): string => {
+  const cx = element.box.x + MOON_MARKER_RADIUS_UM;
+  const cy = element.box.y + MOON_MARKER_RADIUS_UM;
+  if (element.shape === "circle") {
+    // SVG's default fill is black: the new-moon disc must explicitly opt
+    // out (fill="none" + black outline) or it renders as a solid disc,
+    // indistinguishable from the full moon.
+    const attributes = element.phase === "full"
+      ? ' fill="black"'
+      : ' fill="none" stroke="black" stroke-width="300"';
+    return `<circle cx="${cx}" cy="${cy}" r="${MOON_MARKER_RADIUS_UM}"${attributes}/>`;
+  }
+  const sweep = element.fillSide === "left" ? 0 : 1;
+  // Quarter glyphs read better printed: the filled half sits inside a full
+  // outline ring (option A of the print-design review), drawn AFTER the
+  // outline so the fill edge stays crisp against the ring interior.
+  const ring = `<circle cx="${cx}" cy="${cy}" r="${MOON_MARKER_RADIUS_UM}" fill="none" stroke="black" stroke-width="300"/>`;
+  const half = `<path d="M ${cx} ${cy - MOON_MARKER_RADIUS_UM} A ${MOON_MARKER_RADIUS_UM} ${MOON_MARKER_RADIUS_UM} 0 0 ${sweep} ${cx} ${cy + MOON_MARKER_RADIUS_UM} Z" fill="black"/>`;
+  return `${ring}${half}`;
 };
 
 /** Validates the closed, metadata-free SVG transport grammar accepted by v1. */
@@ -158,6 +201,7 @@ export const validateRestrictedSvg: (value: unknown) => asserts value is string 
 
   const rectangles: PhysicalBox[] = [];
   const texts: ParsedText[] = [];
+  const shapes: ParsedShape[] = [];
   let sawText = false;
   while (body !== "") {
     const rectangle = body.match(RECT);
@@ -179,6 +223,33 @@ export const validateRestrictedSvg: (value: unknown) => asserts value is string 
       assertEscapedText(text[10]);
       texts.push(parsed);
       body = body.slice(text[0].length);
+      continue;
+    }
+
+    const circle = body.match(CIRCLE);
+    if (circle) {
+      const cx = numberFrom(circle[1]);
+      const cy = numberFrom(circle[2]);
+      const radius = numberFrom(circle[3]);
+      if (radius !== MOON_MARKER_RADIUS_UM) fail("contains a moon marker with an unapproved radius");
+      shapes.push({ kind: "circle", cx, cy, radius });
+      body = body.slice(circle[0].length);
+      continue;
+    }
+
+    const halfDisc = body.match(HALF_DISC);
+    if (halfDisc) {
+      const x1 = numberFrom(halfDisc[1]);
+      const y1 = numberFrom(halfDisc[2]);
+      const radius = numberFrom(halfDisc[3]);
+      const x2 = numberFrom(halfDisc[5]);
+      const y2 = numberFrom(halfDisc[6]);
+      if (radius !== MOON_MARKER_RADIUS_UM) fail("contains a moon marker with an unapproved radius");
+      if (x1 !== x2 || y2 - y1 !== 2 * MOON_MARKER_RADIUS_UM) {
+        fail("contains a moon marker half-disc with unapproved geometry");
+      }
+      shapes.push({ kind: "half-disc", cx: x1, cy: (y1 + y2) / 2, radius });
+      body = body.slice(halfDisc[0].length);
       continue;
     }
 
@@ -254,4 +325,36 @@ export const validateRestrictedSvg: (value: unknown) => asserts value is string 
     }
   }
   if (textIndex !== texts.length) fail("must keep day and holiday text in canonical matrix order");
+
+  // Moon markers: every parsed shape must sit inside one canonical cell and
+  // vertically within its day-number band (the protected handwriting region
+  // starts at 15.5 mm from the cell top; the band ends at 6 mm).
+  for (const shape of shapes) {
+    const box = {
+      x: shape.cx - shape.radius,
+      y: shape.cy - shape.radius,
+      width: 2 * shape.radius,
+      height: 2 * shape.radius,
+    };
+    const inCell = rectangles.slice(2).some((cellBox) =>
+      box.x >= cellBox.x &&
+      box.y >= cellBox.y &&
+      box.x + box.width <= cellBox.x + cellBox.width &&
+      box.y + box.height <= cellBox.y + cellBox.height,
+    );
+    if (!inCell) fail("must keep moon markers inside a canonical cell");
+    const inDayBand = rectangles.slice(2).some((cellBox) => {
+      const bandTop = cellBox.y + 1_500;
+      const bandBottom = cellBox.y + 6_000;
+      return box.y >= bandTop && box.y + box.height <= bandBottom;
+    });
+    if (!inDayBand) fail("must keep moon markers inside the day-number annotation band");
+  }
 };
+
+interface ParsedShape {
+  readonly kind: "circle" | "half-disc";
+  readonly cx: number;
+  readonly cy: number;
+  readonly radius: number;
+}

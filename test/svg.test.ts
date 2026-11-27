@@ -181,3 +181,66 @@ test("rejects forbidden features, metadata, unsafe geometry, and non-canonical e
     assert.throws(() => validateRestrictedSvg(invalid));
   }
 });
+
+test("serializes moon markers as bounded circles and half-discs", async () => {
+  const { deriveMoonPhasesForMonth } = await import("../src/domain/moon.ts");
+  const calendar = buildMonthlyCalendar(
+    { year: 2024, month: 5 },
+    undefined,
+    deriveMoonPhasesForMonth({ year: 2024, month: 5 }),
+  );
+  const layout = deriveMonthlyCalendarLayout(calendar, PROPOSED_COMPACT_HEADER_A4_POLICY);
+  const document = buildLayoutDocument(calendar, layout, deriveWritableRegions(layout, calendar));
+  const svg = serializeRestrictedSvg(document);
+  const circles = svg.match(/<circle cx="\d+" cy="\d+" r="1500"( fill="black"| fill="none" stroke="black" stroke-width="300")?\/>/g) ?? [];
+  const halfDiscs = svg.match(/<path d="M \d+ \d+ A 1500 1500 0 0 [01] \d+ \d+ Z" fill="black"\/>/g) ?? [];
+  assert.equal(circles.length, 5); // new + full + 3 quarter outline rings
+  assert.equal(halfDiscs.length, 3); // LQ, FQ, LQ
+  assert.ok(circles.some((circle) => circle.endsWith('fill="black"/>'))); // full moon is solid
+  assert.ok(circles.some((circle) => circle.includes('fill="none" stroke="black"'))); // new moon is an outlined empty disc
+});
+
+test("half-disc orientation: first quarter fills left, last quarter fills right (southern hemisphere)", async () => {
+  const { deriveMoonPhasesForMonth } = await import("../src/domain/moon.ts");
+  const calendar = buildMonthlyCalendar(
+    { year: 2024, month: 5 },
+    undefined,
+    deriveMoonPhasesForMonth({ year: 2024, month: 5 }),
+  );
+  const layout = deriveMonthlyCalendarLayout(calendar, PROPOSED_COMPACT_HEADER_A4_POLICY);
+  const document = buildLayoutDocument(calendar, layout, deriveWritableRegions(layout, calendar));
+  const svg = serializeRestrictedSvg(document);
+  // Chord is the vertical diameter: x1 == x2 and y2 == y1 + 2*r.
+  const halfDiscs = [...svg.matchAll(/<path d="M (\d+) (\d+) A 1500 1500 0 0 ([01]) (\d+) (\d+) Z" fill="black"\/>/g)];
+  assert.ok(halfDiscs.length > 0);
+  for (const match of halfDiscs) {
+    const [, x1, y1, sweep, x2, y2] = match;
+    assert.equal(x1, x2, "half-disc chord must be vertical");
+    assert.equal(Number(y2) - Number(y1), 3000, "half-disc chord must span the vertical diameter");
+    assert.ok(match[0]);
+  }
+  // First quarter: sweep 0 (from the top point the counterclockwise arc
+  // passes the leftmost point) => filled left half — the southern-hemisphere
+  // view where the waxing moon is lit on the left (verified against the
+  // official SHN phase icons, LUNA2.jpg). Last quarter: sweep 1 => right half.
+  const sweeps = halfDiscs.map((match) => match[3]);
+  assert.ok(sweeps.includes("0"), "first-quarter marker must fill the left half");
+  assert.ok(sweeps.includes("1"), "last-quarter marker must fill the right half");
+});
+test("rejects arbitrary path data and wrong moon-marker geometry", async () => {
+  const { deriveMoonPhasesForMonth } = await import("../src/domain/moon.ts");
+  const calendar = buildMonthlyCalendar(
+    { year: 2024, month: 5 },
+    undefined,
+    deriveMoonPhasesForMonth({ year: 2024, month: 5 }),
+  );
+  const layout = deriveMonthlyCalendarLayout(calendar, PROPOSED_COMPACT_HEADER_A4_POLICY);
+  const document = buildLayoutDocument(calendar, layout, deriveWritableRegions(layout, calendar));
+  const svg = serializeRestrictedSvg(document);
+  assert.throws(() => validateRestrictedSvg(svg.replace(/r="1500"/, 'r="1600"')), /unapproved radius/);
+  const freeform = svg.replace(
+    /<path d="[^"]*" fill="black"\/>/,
+    '<path d="M 100 100 C 100 100 100 100 100 100 Z" fill="black"/>',
+  );
+  assert.throws(() => validateRestrictedSvg(freeform), /unapproved element|unapproved geometry/);
+});

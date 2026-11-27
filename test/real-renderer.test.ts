@@ -91,6 +91,12 @@ test("renders the monthly calendar with the local rsvg and Poppler toolchain", a
     assert.match(result.svg, /Día del Trabajador/);
     assert.doesNotMatch(result.svg, /<metadata\b/i);
     assert.doesNotMatch(result.svg, /holiday[-_ ]?audit|audit[-_ ]?holiday/i);
+    // Moon phases: May 2024 has five primary phases; each must serialize as a
+    // bounded glyph in the day-number band of its cell (S7/S8 pin).
+    const moonCircles = result.svg.match(/<circle cx="\d+" cy="\d+" r="1500"( fill="black"| fill="none" stroke="black" stroke-width="300")?\/>/g) ?? [];
+    const moonHalfDiscs = result.svg.match(/<path d="M \d+ \d+ A 1500 1500 0 0 [01] \d+ \d+ Z" fill="black"\/>/g) ?? [];
+    assert.equal(moonCircles.length, 5); // new + full + 3 quarter outline rings
+    assert.equal(moonHalfDiscs.length, 3); // last-quarter, first-quarter, last-quarter
 
     const inspectionPath = await fileSystem.allocateTemporaryPath(".pdf");
     try {
@@ -106,6 +112,11 @@ test("renders the monthly calendar with the local rsvg and Poppler toolchain", a
       assert.match(pdffonts, /dejavu[\s-]*sans.*\byes\b/i);
       for (const token of ["Mié", "Sáb", "Día del Trabajador"]) {
         assert.ok(text.includes(token), `the PDF text must contain ${token}`);
+      }
+      // The moon glyphs are vector shapes, not text: the PDF text layer must
+      // stay unchanged by them (no phase names leak into the text layer).
+      for (const phaseName of ["new", "first-quarter", "full", "last-quarter"]) {
+        assert.ok(!text.includes(phaseName), `the PDF text must not contain phase name ${phaseName}`);
       }
     } finally {
       await fileSystem.remove(inspectionPath);

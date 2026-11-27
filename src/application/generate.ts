@@ -15,6 +15,7 @@ import {
   PROPOSED_COMPACT_HEADER_A4_POLICY,
 } from "../domain/layout-policy.ts";
 import { buildMonthlyCalendar, type MonthlyCalendar } from "../domain/month.ts";
+import { deriveMoonPhasesForMonth } from "../domain/moon.ts";
 import type {
   InspectedPdfArtifact,
   PdfRenderer,
@@ -92,7 +93,11 @@ export const generateMonthlyCalendarPdf = async (
     request.year,
     request.holidayScope,
   );
-  const calendar = buildMonthlyCalendar(request, holidayResolution);
+  const calendar = buildMonthlyCalendar(
+    request,
+    holidayResolution,
+    deriveMoonPhasesForMonth({ year: request.year, month: request.month }),
+  );
   const layout = deriveMonthlyCalendarLayout(
     calendar,
     PROPOSED_COMPACT_HEADER_A4_POLICY,
