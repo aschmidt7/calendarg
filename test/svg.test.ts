@@ -181,3 +181,39 @@ test("rejects forbidden features, metadata, unsafe geometry, and non-canonical e
     assert.throws(() => validateRestrictedSvg(invalid));
   }
 });
+
+test("serializes moon markers as bounded circles and half-discs", async () => {
+  const { deriveMoonPhasesForMonth } = await import("../src/domain/moon.ts");
+  const calendar = buildMonthlyCalendar(
+    { year: 2024, month: 5 },
+    undefined,
+    deriveMoonPhasesForMonth({ year: 2024, month: 5 }),
+  );
+  const layout = deriveMonthlyCalendarLayout(calendar, PROPOSED_COMPACT_HEADER_A4_POLICY);
+  const document = buildLayoutDocument(calendar, layout, deriveWritableRegions(layout, calendar));
+  const svg = serializeRestrictedSvg(document);
+  const circles = svg.match(/<circle cx="\d+" cy="\d+" r="1500"( fill="black")?\/>/g) ?? [];
+  const halfDiscs = svg.match(/<path d="M \d+ \d+ A 1500 1500 0 0 [01] \d+ \d+ Z" fill="black"\/>/g) ?? [];
+  assert.equal(circles.length, 2); // new + full
+  assert.equal(halfDiscs.length, 3); // LQ, FQ, LQ
+  assert.ok(circles.some((circle) => circle.includes('fill="black"'))); // full moon is solid
+  assert.ok(circles.some((circle) => !circle.includes("fill"))); // new moon is outlined
+});
+
+test("rejects arbitrary path data and wrong moon-marker geometry", async () => {
+  const { deriveMoonPhasesForMonth } = await import("../src/domain/moon.ts");
+  const calendar = buildMonthlyCalendar(
+    { year: 2024, month: 5 },
+    undefined,
+    deriveMoonPhasesForMonth({ year: 2024, month: 5 }),
+  );
+  const layout = deriveMonthlyCalendarLayout(calendar, PROPOSED_COMPACT_HEADER_A4_POLICY);
+  const document = buildLayoutDocument(calendar, layout, deriveWritableRegions(layout, calendar));
+  const svg = serializeRestrictedSvg(document);
+  assert.throws(() => validateRestrictedSvg(svg.replace(/r="1500"/, 'r="1600"')), /unapproved radius/);
+  const freeform = svg.replace(
+    /<path d="[^"]*" fill="black"\/>/,
+    '<path d="M 100 100 C 100 100 100 100 100 100 Z" fill="black"/>',
+  );
+  assert.throws(() => validateRestrictedSvg(freeform), /unapproved element|unapproved geometry/);
+});

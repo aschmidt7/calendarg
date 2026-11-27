@@ -25,6 +25,7 @@ export const HEADING_FONT_SIZE_UM = 5_000;
 export const WEEKDAY_HEADER_FONT_SIZE_UM = 3_000;
 export const DAY_NUMBER_FONT_SIZE_UM = 4_200;
 export const ADJACENT_DAY_NUMBER_FONT_SIZE_UM = 4_200;
+export const MOON_MARKER_DIAMETER_UM = 3_000;
 
 const A4_SAFE_AREA: PhysicalBox = {
   x: 10_000,
@@ -41,7 +42,10 @@ type TextRole =
   | "adjacent-day-number"
   | "holiday-label";
 
-export type LayoutRole = RectangleRole | TextRole;
+export type ShapeRole = "moon-marker";
+export type MoonPhaseMarkerPhase = "new" | "first-quarter" | "full" | "last-quarter";
+
+export type LayoutRole = RectangleRole | TextRole | ShapeRole;
 export type TextStyleToken =
   | typeof BLACK_TEXT_STYLE_TOKEN
   | typeof ADJACENT_DAY_NUMBER_STYLE_TOKEN;
@@ -82,7 +86,26 @@ export interface LayoutText extends LayoutElementBase {
   readonly truncated?: boolean;
 }
 
-export type LayoutElement = LayoutRectangle | LayoutText;
+/**
+ * Geometric shape element. The only admitted shape is the bounded moon-phase
+ * glyph in the day-number band of a current-month cell; it carries no text,
+ * no font, and no protected-region use.
+ */
+export interface LayoutShape extends LayoutElementBase {
+  readonly kind: "shape";
+  readonly role: ShapeRole;
+  readonly shape: "circle" | "half-disc";
+  /** Phase the glyph denotes; validated against the primary phase set. */
+  readonly phase: MoonPhaseMarkerPhase;
+  /** "right" for a filled right half (first quarter, southern hemisphere),
+   *  "left" for a filled left half (last quarter). Ignored for circles. */
+  readonly fillSide?: "left" | "right";
+  readonly rowIndex: number;
+  readonly columnIndex: number;
+  readonly isoDate: string;
+}
+
+export type LayoutElement = LayoutRectangle | LayoutText | LayoutShape;
 
 export interface LayoutProtectedRegion {
   readonly id: string;
@@ -331,6 +354,31 @@ export const buildLayoutDocument = (
         isoDate: cell.isoDate,
         box: cloneBox(annotation.dayNumberBox),
       });
+      if (current && cell.moonPhase) {
+        // Classic B/W glyph at the right end of the day-number band,
+        // vertically centered: never inside the protected writable region.
+        const band = annotation.dayNumberBox;
+        const diameter = MOON_MARKER_DIAMETER_UM;
+        add({
+          id: `moon-marker-${rowIndex}-${columnIndex}`,
+          kind: "shape",
+          role: "moon-marker",
+          shape: cell.moonPhase === "new" || cell.moonPhase === "full" ? "circle" : "half-disc",
+          phase: cell.moonPhase,
+          ...(cell.moonPhase === "first-quarter" || cell.moonPhase === "last-quarter"
+            ? { fillSide: cell.moonPhase === "first-quarter" ? "right" as const : "left" as const }
+            : {}),
+          rowIndex,
+          columnIndex,
+          isoDate: cell.isoDate,
+          box: {
+            x: band.x + band.width - diameter,
+            y: band.y + Math.floor((band.height - diameter) / 2),
+            width: diameter,
+            height: diameter,
+          },
+        });
+      }
       if (current) {
         const protectedRegion = protectedRegions.get(coordinateKey(rowIndex, columnIndex));
         if (!protectedRegion || protectedRegion.isoDate !== cell.isoDate) {
@@ -414,6 +462,7 @@ const allowedRoles = new Set<LayoutRole>([
   "day-number",
   "adjacent-day-number",
   "holiday-label",
+  "moon-marker",
 ]);
 
 const assertElement: (
@@ -432,8 +481,13 @@ const assertElement: (
     throw new RangeError("Layout element containment must remain inside the safe area.");
   }
   const rectangle = element.role === "page" || element.role === "grid" || element.role === "cell";
-  if ((rectangle && element.kind !== "rectangle") || (!rectangle && element.kind !== "text")) {
+  const shape = element.role === "moon-marker";
+  if ((rectangle && element.kind !== "rectangle") || (shape ? element.kind !== "shape" : (!rectangle && element.kind !== "text"))) {
     throw new RangeError("Layout element kind is incompatible with its v1 role.");
+  }
+  if (shape) {
+    assertMoonMarker(element as unknown as LayoutShape, safeArea);
+    return;
   }
   if (!rectangle && element.styleToken !== (element.role === "adjacent-day-number"
     ? ADJACENT_DAY_NUMBER_STYLE_TOKEN
@@ -456,6 +510,40 @@ const assertElement: (
   }
 };
 
+const MOON_PHASE_MARKER_PHASES: ReadonlySet<string> = new Set([
+  "new",
+  "first-quarter",
+  "full",
+  "last-quarter",
+]);
+
+/**
+ * Bounded moon-marker geometry: the glyph box must be exactly the circle
+ * bounding box (diameter-sized square), centered vertically in the cell's
+ * day-number annotation band, and must never reach the protected writable
+ * region of its cell (enforced during canonical validation via containment
+ * in the annotation band).
+ */
+const assertMoonMarker = (
+  element: LayoutShape,
+  safeArea: PhysicalBox,
+): void => {
+  if (!isBox(element.box) || element.box.width !== MOON_MARKER_DIAMETER_UM || element.box.height !== MOON_MARKER_DIAMETER_UM) {
+    throw new RangeError("Moon marker must use the fixed 3 mm diameter box.");
+  }
+  if (
+    !MOON_PHASE_MARKER_PHASES.has(element.phase) ||
+    (element.shape === "half-disc" ? element.phase === "new" || element.phase === "full" : false) ||
+    (element.shape === "circle" ? element.phase === "first-quarter" || element.phase === "last-quarter" : false) ||
+    (element.shape === "half-disc" && element.fillSide !== "left" && element.fillSide !== "right") ||
+    (element.shape === "circle" && element.fillSide !== undefined)
+  ) {
+    throw new RangeError("Moon marker shape, phase, and fill side must be consistent.");
+  }
+  if (element.role !== "moon-marker" || element.box.x < safeArea.x || !isInside(element.box, safeArea)) {
+    throw new RangeError("Moon marker must be contained in the safe area.");
+  }
+};
 export const validateLayoutDocument: (value: unknown) => asserts value is LayoutDocument = (
   value,
 ) => {
@@ -525,6 +613,7 @@ export const validateLayoutDocument: (value: unknown) => asserts value is Layout
   const currentCells = new Set<string>();
   const currentDates = new Map<string, string>();
   const holidayLinesByCell = new Map<string, LayoutText[]>();
+  const moonMarkersByCell = new Map<string, LayoutShape>();
   for (let rowIndex = 0; rowIndex < value.matrix.rowCount; rowIndex += 1) {
     for (let columnIndex = 0; columnIndex < 7; columnIndex += 1) {
       const key = coordinateKey(rowIndex, columnIndex);
@@ -549,6 +638,24 @@ export const validateLayoutDocument: (value: unknown) => asserts value is Layout
           throw new RangeError("Current-month day text must identify its ISO date.");
         }
         currentDates.set(key, day.isoDate);
+      }
+      // Canonical moon-marker follows its day number inside the same cell.
+      const moonMarker = value.elements[cursor];
+      if (moonMarker?.role === "moon-marker") {
+        const marker = moonMarker as unknown as LayoutShape;
+        if (
+          !current ||
+          marker.kind !== "shape" ||
+          marker.id !== `moon-marker-${rowIndex}-${columnIndex}` ||
+          marker.rowIndex !== rowIndex ||
+          marker.columnIndex !== columnIndex ||
+          marker.isoDate !== day.isoDate ||
+          !isInside(marker.box, cellBox)
+        ) {
+          throw new RangeError("Moon marker must annotate its own current-month day cell.");
+        }
+        moonMarkersByCell.set(key, marker);
+        cursor += 1;
       }
       const holidayLines: LayoutText[] = [];
       while (value.elements[cursor]?.role === "holiday-label") {
@@ -592,6 +699,16 @@ export const validateLayoutDocument: (value: unknown) => asserts value is Layout
     }
   }
   if (cursor !== value.elements.length) throw new RangeError("Layout elements must have canonical matrix order.");
+
+  // Moon markers stay outside every protected writable region (the handwriting
+  // space is inviolable; the glyph only lives in the day-number band).
+  for (const [key, marker] of moonMarkersByCell) {
+    for (const region of value.protectedRegions) {
+      if (region.rowIndex === marker.rowIndex && region.columnIndex === marker.columnIndex && overlaps(marker.box, region.box)) {
+        throw new RangeError("Moon marker must remain outside the protected writable region.");
+      }
+    }
+  }
 
   const protectedBoxesByCell = new Map<string, PhysicalBox>();
   for (let index = 0; index < value.protectedRegions.length; index += 1) {
