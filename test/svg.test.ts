@@ -200,6 +200,31 @@ test("serializes moon markers as bounded circles and half-discs", async () => {
   assert.ok(circles.some((circle) => !circle.includes("fill"))); // new moon is outlined
 });
 
+test("half-disc orientation fills right for first quarter and left for last quarter", async () => {
+  const { deriveMoonPhasesForMonth } = await import("../src/domain/moon.ts");
+  const calendar = buildMonthlyCalendar(
+    { year: 2024, month: 5 },
+    undefined,
+    deriveMoonPhasesForMonth({ year: 2024, month: 5 }),
+  );
+  const layout = deriveMonthlyCalendarLayout(calendar, PROPOSED_COMPACT_HEADER_A4_POLICY);
+  const document = buildLayoutDocument(calendar, layout, deriveWritableRegions(layout, calendar));
+  const svg = serializeRestrictedSvg(document);
+  // Chord is the vertical diameter: x1 == x2 and y2 == y1 + 2*r.
+  const halfDiscs = [...svg.matchAll(/<path d="M (\d+) (\d+) A 1500 1500 0 0 ([01]) (\d+) (\d+) Z" fill="black"\/>/g)];
+  assert.ok(halfDiscs.length > 0);
+  for (const match of halfDiscs) {
+    const [, x1, y1, sweep, x2, y2] = match;
+    assert.equal(x1, x2, "half-disc chord must be vertical");
+    assert.equal(Number(y2) - Number(y1), 3000, "half-disc chord must span the vertical diameter");
+    assert.ok(match[0]);
+  }
+  // First quarter: sweep 1 (from the top point the clockwise arc passes the
+  // rightmost point) => filled right half. Last quarter: sweep 0 => left half.
+  const sweeps = halfDiscs.map((match) => match[3]);
+  assert.ok(sweeps.includes("1"), "first-quarter marker must fill the right half");
+  assert.ok(sweeps.includes("0"), "last-quarter marker must fill the left half");
+});
 test("rejects arbitrary path data and wrong moon-marker geometry", async () => {
   const { deriveMoonPhasesForMonth } = await import("../src/domain/moon.ts");
   const calendar = buildMonthlyCalendar(

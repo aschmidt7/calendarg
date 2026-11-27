@@ -314,8 +314,12 @@ export const deriveMoonPhasesForMonth = (
   for (const phase of MOON_PHASE_NAMES) {
     for (const k of candidateLunations(monthStartLocalJd, monthEndLocalJd)) {
       const jd = correctedPhaseJulianDay(k, phase);
-      const localJd = jd - ARGENTINA_UTC_OFFSET_HOURS / 24;
-      if (localJd < monthStartLocalJd || localJd >= monthEndLocalJd) continue;
+      // Both window bounds are already Julian Days of UT instants: they are
+      // the UT instants of Argentine local midnight of the first and last
+      // dates (+1) of the month. The phase instant jd is the same scale, so
+      // it must be compared directly; subtracting the UTC offset again would
+      // silently drop phases before 03:00 local on day 1.
+      if (jd < monthStartLocalJd || jd >= monthEndLocalJd) continue;
       const isoDate = argentineIsoDateOf(jd);
       if (!isoDate.startsWith(monthPrefix)) continue;
       // At most one primary phase per calendar date by construction

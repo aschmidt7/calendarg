@@ -15,9 +15,10 @@ const NUMBER = "(0|[1-9]\\d*)";
 const RECT = new RegExp(`^<rect x="${NUMBER}" y="${NUMBER}" width="${NUMBER}" height="${NUMBER}"\\/>`);
 const TEXT = new RegExp(`^<text x="${NUMBER}" y="${NUMBER}" width="${NUMBER}" height="${NUMBER}" font-size="${NUMBER}" text-anchor="(start|middle)" dominant-baseline="(hanging|middle)"( fill="(#B8B8B8)")?>([^<]*)<\\/text>`);
 // Bounded moon glyph grammar: an outlined or filled circle and a half-disc
-// built from exactly one arc and one closing line segment. Half-disc path is
-// "M cx-r cy A r r 0 0 sweep cx+r cy Z" (left half fills left→right edge),
-// so the arc sweep flag is the only variable component.
+// built from exactly one arc and one closing line segment. The half-disc path
+// is "M cx cy-r A r r 0 0 sweep cx cy+r Z" (vertical diameter chord; sweep 1
+// fills the right half, sweep 0 the left half), so the arc sweep flag is the
+// only variable component.
 const CIRCLE = new RegExp(`^<circle cx="${NUMBER}" cy="${NUMBER}" r="${NUMBER}"( fill="black")?\\/>`);
 const HALF_DISC = new RegExp(`^<path d="M ${NUMBER} ${NUMBER} A ${NUMBER} ${NUMBER} 0 0 [01] ${NUMBER} ${NUMBER} Z" fill="black"\\/>`);
 
@@ -156,6 +157,9 @@ const MOON_MARKER_RADIUS_UM = MOON_MARKER_DIAMETER_UM / 2;
 /**
  * Classic black-and-white phase glyph (southern-hemisphere convention:
  * first quarter fills the right half, last quarter fills the left half).
+ * The half-disc chord is the VERTICAL diameter: from the top point a
+ * sweep-1 arc passes through the rightmost point (SVG y grows downward),
+ * so sweep 1 fills the right half and sweep 0 the left half.
  * Serialization is fully derived from the canonical moon-marker element;
  * nothing free-form may reach the SVG body.
  */
@@ -166,8 +170,8 @@ const serializeMoonMarker = (element: LayoutShape): string => {
     const fill = element.phase === "full" ? ' fill="black"' : "";
     return `<circle cx="${cx}" cy="${cy}" r="${MOON_MARKER_RADIUS_UM}"${fill}/>`;
   }
-  const side = element.fillSide === "left" ? 0 : 1;
-  return `<path d="M ${cx - MOON_MARKER_RADIUS_UM} ${cy} A ${MOON_MARKER_RADIUS_UM} ${MOON_MARKER_RADIUS_UM} 0 0 ${side} ${cx + MOON_MARKER_RADIUS_UM} ${cy} Z" fill="black"/>`;
+  const sweep = element.fillSide === "left" ? 0 : 1;
+  return `<path d="M ${cx} ${cy - MOON_MARKER_RADIUS_UM} A ${MOON_MARKER_RADIUS_UM} ${MOON_MARKER_RADIUS_UM} 0 0 ${sweep} ${cx} ${cy + MOON_MARKER_RADIUS_UM} Z" fill="black"/>`;
 };
 
 /** Validates the closed, metadata-free SVG transport grammar accepted by v1. */
@@ -230,10 +234,10 @@ export const validateRestrictedSvg: (value: unknown) => asserts value is string 
       const x2 = numberFrom(halfDisc[5]);
       const y2 = numberFrom(halfDisc[6]);
       if (radius !== MOON_MARKER_RADIUS_UM) fail("contains a moon marker with an unapproved radius");
-      if (y1 !== y2 || Math.abs(x2 - x1) !== 2 * MOON_MARKER_RADIUS_UM) {
+      if (x1 !== x2 || y2 - y1 !== 2 * MOON_MARKER_RADIUS_UM) {
         fail("contains a moon marker half-disc with unapproved geometry");
       }
-      shapes.push({ kind: "half-disc", cx: (x1 + x2) / 2, cy: y1, radius });
+      shapes.push({ kind: "half-disc", cx: x1, cy: (y1 + y2) / 2, radius });
       body = body.slice(halfDisc[0].length);
       continue;
     }
