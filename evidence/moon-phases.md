@@ -49,8 +49,13 @@ marker/protected-region disjointness per cell.
   layer); pdffonts shows the same embedded DejaVu Sans.
 - Regenerated evidence artifact (retained locally, `evidence/output/` is
   gitignored): `monthly-calendar-2024-05-moonphases.pdf`,
-  SHA-256 `bf5b70e35af536300eef178f08499400899eb61b4c46254b3490c4a43a36e439`,
-  1 A4 portrait page, 11,043 bytes.
+  SHA-256 `8baeda62920a34d78e8f184253ceaa86c54c969f7b40b669ef10c8e5f9c26520`,
+  1 A4 portrait page, 11,052 bytes. Visually verified (rendered to PNG with
+  pdftoppm): new moon is an outlined empty disc, full moon a solid disc, and
+  the quarter glyphs fill the correct half per the SHN convention. Previous
+  artifact SHA-256 `bf5b70e3...` had the SVG default-fill defect where the
+  new-moon circle rendered solid (identical to the full moon), reported by
+  the user during the physical print review.
 
 ## Physical print evidence (pending)
 

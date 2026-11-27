@@ -19,7 +19,7 @@ const TEXT = new RegExp(`^<text x="${NUMBER}" y="${NUMBER}" width="${NUMBER}" he
 // is "M cx cy-r A r r 0 0 sweep cx cy+r Z" (vertical diameter chord; sweep 1
 // fills the right half, sweep 0 the left half), so the arc sweep flag is the
 // only variable component.
-const CIRCLE = new RegExp(`^<circle cx="${NUMBER}" cy="${NUMBER}" r="${NUMBER}"( fill="black")?\\/>`);
+const CIRCLE = new RegExp(`^<circle cx="${NUMBER}" cy="${NUMBER}" r="${NUMBER}"( fill="black"| fill="none" stroke="black" stroke-width="300")?\\/>`);
 const HALF_DISC = new RegExp(`^<path d="M ${NUMBER} ${NUMBER} A ${NUMBER} ${NUMBER} 0 0 [01] ${NUMBER} ${NUMBER} Z" fill="black"\\/>`);
 
 const fail: (message: string) => never = (message) => {
@@ -168,8 +168,13 @@ const serializeMoonMarker = (element: LayoutShape): string => {
   const cx = element.box.x + MOON_MARKER_RADIUS_UM;
   const cy = element.box.y + MOON_MARKER_RADIUS_UM;
   if (element.shape === "circle") {
-    const fill = element.phase === "full" ? ' fill="black"' : "";
-    return `<circle cx="${cx}" cy="${cy}" r="${MOON_MARKER_RADIUS_UM}"${fill}/>`;
+    // SVG's default fill is black: the new-moon disc must explicitly opt
+    // out (fill="none" + black outline) or it renders as a solid disc,
+    // indistinguishable from the full moon.
+    const attributes = element.phase === "full"
+      ? ' fill="black"'
+      : ' fill="none" stroke="black" stroke-width="300"';
+    return `<circle cx="${cx}" cy="${cy}" r="${MOON_MARKER_RADIUS_UM}"${attributes}/>`;
   }
   const sweep = element.fillSide === "left" ? 0 : 1;
   return `<path d="M ${cx} ${cy - MOON_MARKER_RADIUS_UM} A ${MOON_MARKER_RADIUS_UM} ${MOON_MARKER_RADIUS_UM} 0 0 ${sweep} ${cx} ${cy + MOON_MARKER_RADIUS_UM} Z" fill="black"/>`;
