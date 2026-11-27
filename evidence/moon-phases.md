@@ -67,9 +67,29 @@ it requires physical access to the printer. The v1 10 mm safe-area calibration
 (`evidence/printer-calibration.md`) is unaffected because the glyph lives
 inside the existing annotation band.
 
+- `e5c496f` feat(domain): moon-phase calculation + SHN fixtures (S1–S4)
+- `16bf927` feat(application): optional moon phase in monthly cells (S5)
+- `a1407c2` feat(rendering): moon-marker IR role + bounded SVG glyphs (S6–S7)
+- PDF inspection pin + this evidence file (S8–S9)
+
+## Physical print evidence
+
+**Result: PASS — printer-scoped (HP LaserJet 1020).** Printed on the
+documented calibration setup (A4 portrait, Actual size 100%, fit-to-page
+disabled): all five May 2024 phase glyphs are clearly legible at 3 mm —
+outlined new moon, solid full moon, and ring-contextualized quarter
+glyphs — and stay inside the day-number annotation band without touching
+the protected handwriting space. Legibility concern raised during the
+print review (quarters without ring context) was resolved by the outline
+ring design (option A chosen by the user from 5 rendered proposals).
+
 ## Commit trail
 
 - `e5c496f` feat(domain): moon-phase calculation + SHN fixtures (S1–S4)
 - `16bf927` feat(application): optional moon phase in monthly cells (S5)
 - `a1407c2` feat(rendering): moon-marker IR role + bounded SVG glyphs (S6–S7)
-- PDF inspection pin + this evidence file (S8–S9)
+- `7b9d772` test(rendering): PDF inspection pin + evidence (S8–S9)
+- `000be52` fix: native review corrections (orientation + window scale)
+- `cc33788` fix: SHN quarter orientation (first-quarter left)
+- `8d71be2` fix: new-moon explicit SVG fill opt-out
+- `9f41e62` feat: quarter outline ring (user print-design choice)
